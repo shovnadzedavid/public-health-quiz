@@ -1,94 +1,155 @@
-/* public-health-quiz client-side app (Vanilla JS, no build step) */
+/* public-health-quiz frontend - zero dependencies, plain ES */
+(function() {
+  'use strict';
 
-const CFG = window.QUIZ_CONFIG || {};
-const SUPABASE_URL = CFG.url || '';
-const SUPABASE_KEY = CFG.key || '';
-const BATCH_SIZE = 500;
-const DRAFT_CHUNK = 50;
+  const cfg = window.QUIZ_CONFIG || {};
+  let currentQuiz = null;
+  let currentQuestions = [];
+  let currentIndex = 0;
+  let score = 0;
+  let startTime = 0;
+  let userAnswers = [];
 
-// State
-let supabase = null;
-let currentTab = 'play';
-let activeQuiz = null;
-let activeQuestions = [];
-let currentIndex = 0;
-let userAnswers = []; // { question_id, chosen_index, is_correct, answered_at }
-let quizStartTime = null;
-let timerInterval = null;
+  function $(id) { return document.getElementById(id); }
 
-// Init
-window.addEventListener('DOMContentLoaded', async () => {
-  if (window.supabase && SUPABASE_URL && SUPABASE_KEY) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  async function api(path, opts) {
+    const res = await fetch(path, opts);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || res.statusText);
+    }
+    return res.json();
   }
-  setupRouting();
-  setupTheme();
-  setupAdminTabs();
-  setupAdminForms();
-  await loadLeaderboardFilters();
-  navigate(getRoute());
-});
 
-function getRoute() {
-  const hash = window.location.hash.replace('#', '') || 'play';
-  return hash;
-}
+  function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const target = $(viewId);
+    if (target) target.classList.add('active');
+    window.scrollTo(0, 0);
+  }
 
-function setRoute(r) {
-  window.location.hash = r;
-}
+  async function loadCatalog() {
+    showView('view-catalog');
+    const list = $('quiz-list');
+    if (!list) return;
+    list.innerHTML = '<div class="loading">იტვირთება...</div>';
 
-function setupRouting() {
-  window.addEventListener('hashchange', () => {
-    navigate(getRoute());
-  });
-  document.querySelectorAll('nav a[data-route]').forEach(a => {
-    a.addEventListener('click', (e) => {
-      e.preventDefault();
-      setRoute(a.getAttribute('data-route'));
+    try {
+      const quizzes = await api('/api/quizzes');
+      if (!quizzes || !quizzes.length) {
+        list.innerHTML = '<div class="empty">ქუიზები ჯერ არ არის დამატებული.</div>';
+        return;
+      }
+
+      list.innerHTML = '';
+      quizzes.forEach(q => {
+        const card = document.createElement('div');
+        card.className = 'quiz-card';
+        card.innerHTML = `
+          <div class="quiz-theme">${q.theme || ''}</div>
+          <h3 class="quiz-title">${q.title}</h3>
+          <div class="quiz-meta">${q.question_count || 15} კითხვა</div>
+          <button class="btn btn-primary start-btn">დაწყება →</button>
+        `;
+        card.querySelector('.start-btn').addEventListener('click', () => startQuiz(q.id));
+        list.appendChild(card);
+      });
+    } catch (e) {
+      list.innerHTML = `<div class="error">შეცდომა: ${e.message}</div>`;
+    }
+  }
+
+  async function startQuiz(quizId) {
+    try {
+      const data = await api(`/api/quizzes/${quizId}`);
+      currentQuiz = data.quiz;
+      currentQuestions = data.questions || [];
+
+      if (!currentQuestions.length) {
+        alert('ქუიზში კითხვები ვერ მოიძებნა!');
+        return;
+      }
+
+      currentIndex = 0;
+      score = 0;
+      userAnswers = [];
+      startTime = Date.now();
+
+      showView('view-play');
+      renderQuestion();
+    } catch (e) {
+      alert('ვერ ჩაიტვირთა ქუიზი: ' + e.message);
+    }
+  }
+
+  function renderQuestion() {
+    const q = currentQuestions[currentIndex];
+    const total = currentQuestions.length;
+
+    $('play-theme').textContent = currentQuiz.theme \vert{}\vert{} '';$('play-counter').textContent = `კითხვა ${currentIndex + 1} / ${total}`;
+    $('play-prompt').textContent = q.prompt;
+
+    const optContainer = $('play-options');
+    optContainer.innerHTML = '';
+
+    q.options.forEach((opt, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.textContent = opt;
+      btn.addEventListener('click', () => handleAnswer(idx));
+      optContainer.appendChild(btn);
     });
-  });
-}
 
-function navigate(route) {
-  currentTab = route;
-  document.querySelectorAll('nav a').forEach(a => {
-    a.classList.toggle('active', a.getAttribute('data-route') === route);
-  });
-  document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
-
-  const view = document.getElementById(`view-${route}`) || document.getElementById('view-play');
-  if (view) view.classList.add('active');
-
-  clearInterval(timerInterval);
-
-  if (route === 'play') renderCatalog();
-  else if (route === 'leaderboard') renderLeaderboard();
-  else if (route === 'admin') renderAdmin();
-  else if (route.startsWith('quiz/')) {
-    const quizId = route.split('/')[1];
-    startQuiz(quizId);
+    $('play-explanation').style.display = 'none';$('play-next-btn').style.display = 'none';
   }
-}
 
-function setupTheme() {
-  const btn = document.getElementById('theme-toggle');
-  const saved = localStorage.getItem('phq_theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
-  btn?.addEventListener('click', () => {
-    const cur = document.documentElement.getAttribute('data-theme');
-    const next = cur === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('phq_theme', next);
+  function handleAnswer(choiceIdx) {
+    const q = currentQuestions[currentIndex];
+    const isCorrect = (choiceIdx === q.answer_index);
+    if (isCorrect) score += 100;
+
+    userAnswers.push({ question_id: q.id, choice: choiceIdx, isCorrect });
+
+    const buttons = $('play-options').querySelectorAll('.option-btn');
+    buttons.forEach((b, idx) => {
+      b.disabled = true;
+      if (idx === q.answer_index) b.classList.add('correct');
+      if (idx === choiceIdx && !isCorrect) b.classList.add('incorrect');
+    });
+
+    const exp = $('play-explanation');
+    exp.innerHTML = `
+      <div class="exp-title">${isCorrect ? 'სწორია!' : 'არასწორია!'}</div>
+      <div class="exp-text">${q.explanation || ''}</div>
+      ${q.source_url ? `<a class="exp-link" href="${q.source_url}" target="_blank" rel="noopener">წყარო: ${q.source_title || 'გადასვლა'}</a>` : ''}
+    `;
+    exp.style.display = 'block';
+
+    const nextBtn = $('play-next-btn');
+    nextBtn.style.display = 'block';
+    nextBtn.textContent = (currentIndex + 1 < currentQuestions.length) ? 'შემდეგი კითხვა →' : 'შედეგის ნახვა →';
+  }
+
+  $('play-next-btn')?.addEventListener('click', () => {
+    currentIndex++;
+    if (currentIndex < currentQuestions.length) {
+      renderQuestion();
+    } else {
+      finishQuiz();
+    }
   });
-}
 
-// ---------------- Catalog ----------------
-async function renderCatalog() {
-  const grid = document.getElementById('catalog-grid');
-  const searchInput = document.getElementById('catalog-search');
-  const themeSelect = document.getElementById('catalog-theme-filter');
-  const dailyBox = document.getElementById('daily-quiz-box');
-  if (!grid) return;
+  function finishQuiz() {
+    showView('view-result');
+    const totalPossible = currentQuestions.length * 100;
+    $('result-score').textContent = score;
+    $('result-total').textContent = `${totalPossible} შესაძლო ქულიდან`;
+  }
 
-  grid.innerHTML = '<div class="catalog
+  // Navigation tabs
+  $('nav-play')?.addEventListener('click', () => loadCatalog());
+  $('nav-home')?.addEventListener('click', () => loadCatalog());$('result-home-btn')?.addEventListener('click', () => loadCatalog());
+
+  // Init
+  loadCatalog();
+})();
