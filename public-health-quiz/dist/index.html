@@ -73,7 +73,6 @@
     .quiz-card { 
       background: var(--card-bg); 
       backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       border: 1px solid var(--border); 
       border-radius: 1rem; 
       padding: 1.5rem; 
@@ -164,7 +163,7 @@
       box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
     }
     
-    /* Leaderboard Table */
+    /* Leaderboard & Admin Tables */
     .table-container { 
       background: var(--card-bg); 
       backdrop-filter: blur(12px);
@@ -183,12 +182,14 @@
   <header>
     <div class="logo" onclick="navigate('play')">🌿 ჯანდაცვის გამოწვევა</div>
     <nav>
-      <a data-route="play" class="active" onclick="navigate('play')">თამაში</a>
+      <a data-route="play" onclick="navigate('play')">თამაში</a>
       <a data-route="leaderboard" onclick="navigate('leaderboard')">რეიტინგი</a>
+      <a data-route="admin" onclick="navigate('admin')">მართვა</a>
     </nav>
     <div class="actions">
       <button class="btn btn-secondary" id="theme-toggle" title="თემის გადართვა">🌓</button>
-      <button class="btn" onclick="navigate('auth')">შესვლა / რეგისტრაცია</button>
+      <button class="btn btn-secondary" onclick="navigate('auth')">შესვლა</button>
+      <button class="btn" onclick="navigate('auth')">რეგისტრაცია</button>
     </div>
   </header>
 
@@ -233,17 +234,26 @@
       </div>
     </div>
 
+    <!-- Admin View -->
+    <div id="view-admin" class="view">
+      <h2 style="margin-bottom: 1.5rem; font-weight: 700;">⚙️ მართვის პანელი</h2>
+      <div class="table-container" style="padding: 2rem;">
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">აქედან შესაძლებელია კითხვებისა და პაკეტების მართვა.</p>
+        <button class="btn" onclick="alert('სისტემა მუშაობს ლოკალურ რეჟიმში (375 კითხვა აქტიურია)')">ბაზის სტატუსის შემოწმება</button>
+      </div>
+    </div>
+
     <!-- Auth View -->
     <div id="view-auth" class="view">
       <div class="auth-box">
         <div style="text-align: center;">
-          <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.3rem;">მოგესალმებით</h2>
+          <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.3rem;">ავტორიზაცია</h2>
           <p style="color: var(--text-muted); font-size: 0.9rem;">შედით სისტემაში ქულების შესანახად</p>
         </div>
         <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
           <input type="email" id="auth-email" placeholder="ელ-ფოსტა">
           <input type="password" id="auth-password" placeholder="პაროლი">
-          <button class="btn" style="width:100%; padding: 0.8rem;" onclick="handleAuth()">შესვლა / რეგისტრაცია</button>
+          <button class="btn" style="width:100%; padding: 0.8rem;" onclick="handleAuth()">შესვლა</button>
         </div>
         <div id="auth-msg" style="font-size: 0.85rem; text-align: center; color: var(--primary);"></div>
       </div>
@@ -310,6 +320,8 @@
         renderCatalog();
       } else if (route === 'leaderboard') {
         $('view-leaderboard').classList.add('active');
+      } else if (route === 'admin') {
+        $('view-admin').classList.add('active');
       } else if (route === 'auth') {
         $('view-auth').classList.add('active');
       } else if (route === 'result') {
