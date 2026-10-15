@@ -1,155 +1,35 @@
-/* public-health-quiz frontend - zero dependencies, plain ES */
-(function() {
-  'use strict';
+'use strict';
+const $=s=>document.querySelector(s), main=$('#main');
+let config=JSON.parse(localStorage.getItem('quizConfig')||'null')||window.QUIZ_CONFIG, auth=JSON.parse(localStorage.getItem('quizAuth')||'null'), state=null, demo=false, demoItems=[], info={published:0,drafts:0,editor:false}, busy=false, catalog=[], clock=null, updatePoll=null, updateEpoch=0, importNotice='', importRunning=false, catalogPage=0, catalogTopic='', catalogSearch='';
+const connected=()=>!!(config?.url&&config?.key);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sourceLink=u=>{try{const x=new URL(u);return x.protocol==='https:'?esc(x.href):'#'}catch{return '#'}};
+async function api(path,body,method='POST',retry=true){if(!connected())throw Error('ჯერ დააკავშირეთ Supabase');if(auth?.expires_at<Date.now()/1000+30&&retry){const r=await api('/auth/v1/token?grant_type=refresh_token',{refresh_token:auth.refresh_token},'POST',false);saveAuth(r)}const r=await fetch(config.url+path,{method,headers:{apikey:config.key,...(auth?.access_token?{Authorization:'Bearer '+auth.access_token}:config.key.startsWith('eyJ')?{Authorization:'Bearer '+config.key}:{}),'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});const data=await r.json().catch(()=>null);if(!r.ok)throw Error(data?.message||data?.msg||data?.error_description||'მოთხოვნა ვერ შესრულდა');return data}
+const rpc=(name,body={})=>api('/rest/v1/rpc/'+name,body);
+function saveAuth(a){auth=a?.access_token?{...a,expires_at:a.expires_at||Date.now()/1000+a.expires_in}:null;if(auth)localStorage.setItem('quizAuth',JSON.stringify(auth));else localStorage.removeItem('quizAuth');$('#account').textContent=auth?'გასვლა':'შესვლა'}
+async function refreshInfo(){if(connected())try{info=await rpc('game_info');catalog=await rpc('quiz_catalog')}catch(e){info.error=e.message}$('#adminNav').hidden=!info.editor}
 
-  const cfg = window.QUIZ_CONFIG || {};
-  let currentQuiz = null;
-  let currentQuestions = [];
-  let currentIndex = 0;
-  let score = 0;
-  let startTime = 0;
-  let userAnswers = [];
+function filteredCatalog(){return catalog.filter(q=>(!catalogTopic||q.theme===catalogTopic)&&(!catalogSearch||(`${q.title}${q.theme}`).toLocaleLowerCase().includes(catalogSearch.toLocaleLowerCase())))}
+function catalogControls(){return `<div class="row"><label>თემა<select id="catalogTopic"><option value="">ყველა თემა</option>${[...new Set(catalog.map(q=>q.theme))].map(t=>`<option value="${esc(t)}" ${catalogTopic===t?'selected':''}>${esc(t)}</option>`).join('')}</select></label><label>ქუიზის ძებნა<input id="catalogSearch" value="${esc(catalogSearch)}" type="search" placeholder="თემა ან სათაური"></label></div>`}
+function catalogMarkup(){const rows=filteredCatalog();catalogPage=Math.min(catalogPage,Math.max(0,Math.ceil(rows.length/24)-1));return rows.slice(catalogPage*24,catalogPage*24+24).map(q=>`<article class="card"><span class="tag">${esc(q.theme)}</span><h2>${esc(q.title)}</h2><p>${q.question_count} კითხვა · ${Math.round(q.question_count*40/60)} წუთი</p><button class="primary" data-quiz="${esc(q.id)}">თამაში →</button></article>`).join('')||'<p>ამ ძებნით ქუიზი არ მოიძებნა.</p>'}
+function bindCatalog(){if(!catalog.length)return;const render=()=>{$('#catalogGrid').innerHTML=catalogMarkup();const n=filteredCatalog().length,pages=Math.ceil(n/24);$('#catalogPages').innerHTML=`<p>${n} ქუიზი · გვერდი ${pages?catalogPage+1:0}/${pages}</p><button id="catalogPrev" ${catalogPage===0?'disabled':''}>წინა</button><button id="catalogNext" ${catalogPage+1>=pages?'disabled':''}>შემდეგი</button>`;$('#catalogPrev').onclick=()=>{catalogPage--;render()};$('#catalogNext').onclick=()=>{catalogPage++;render()};document.querySelectorAll('[data-quiz]').forEach(b=>b.onclick=()=>start('quiz',b.dataset.quiz));};$('#catalogTopic').onchange=e=>{catalogTopic=e.target.value;catalogPage=0;render()};$('#catalogSearch').oninput=e=>{catalogSearch=e.target.value;catalogPage=0;render()};render()}
 
-  function $(id) { return document.getElementById(id); }
+function home(){stopUpdates();clearInterval(clock);state=null;main.innerHTML=`<section class="hero"><div><span class="eyebrow">საზოგადოებრივი ჯანდაცვა • ქუიზების კლუბი</span><h1>რამდენად სწრაფად<br>იპოვი სწორ პასუხს?</h1><p class="intro">აირჩიე თემატური ქუიზი. გამოიყენე ცოდნა და ლოგიკა. დააგროვე ქულები და დაიკავე შენი ადგილი რეიტინგში.</p><div class="stats"><span><strong>15–30</strong>კითხვა ქუიზში</span><span><strong>${info.published}</strong>დამტკიცებული კითხვა</span><span><strong>10,000</strong>ბაზის მიზანი</span></div></div><div class="art" aria-hidden="true"><div class="orb">✳</div><h2>ერთი ქუიზი.<br>ბევრი აღმოჩენა.</h2><span class="tag">ცოდნა + ლოგიკა</span></div></section>${!connected()?'<div class="notice">დემო · რეგისტრაცია და ონლაინ რეიტინგი ჩაირთვება Supabase-ის დაკავშირების შემდეგ. სატესტო ქულები რეიტინგში არ ინახება.</div>':''}<section class="card daily-banner" style="margin-top:25px"><span class="tag">ყოველდღე ახალი არჩევანი</span><h2>დღის ქუიზი</h2><p>15 კითხვა · 10 წუთი · ერთი ჩასათვლელი ცდა. ჯანმრთელობის მნიშვნელოვან თარიღებზე — დღის შესაბამისი თემა.</p><button class="primary" id="daily" ${connected()?'':'disabled'}>დღის ქუიზის დაწყება →</button></section><div class="row" style="margin-top:30px"><h2>ქუიზების კატალოგი</h2><span style="margin-left:auto" class="tag">15 / 20 / 25 / 30 კითხვა</span></div>${catalog.length?catalogControls():''}<section id="catalogGrid" class="grid" style="margin-top:5px">${catalog.length?catalogMarkup():`<article class="card"><span class="tag">სატესტო ქუიზი</span><h2>საზოგადოებრივი ჯანდაცვის თავსატეხები</h2><p>15 კითხვა · წყაროებით მომზადებული მონახაზები · რეიტინგის გარეშე მხოლოდ ამ დემოში.</p><button class="primary" id="demoQuiz">სატესტო ქუიზის ნახვა</button></article><article class="card"><span class="tag">მზადდება</span><h2>თემატური ქუიზების კოლექცია</h2><p>გამოქვეყნებული ქუიზები აქ გამოჩნდება კითხვების დამტკიცების შემდეგ.</p></article>`}</section><div id="catalogPages"></div><p>${info.drafts?info.drafts+' მონახაზი ელოდება შემოწმებას. ':''}რეიტინგი ითვლის პირველ ცდას; ქუიზების საერთო შეფასება გამოითვლება სწორი პასუხების საშუალო პროცენტით.</p>${info.error?'<p class="error">'+esc(info.error)+'</p>':''}`;bindCatalog();$('#daily').onclick=()=>start('daily');document.querySelectorAll('[data-quiz]').forEach(b=>b.onclick=()=>start('quiz',b.dataset.quiz));if($('#demoQuiz'))$('#demoQuiz').onclick=()=>start('demo')}
+async function start(mode,quizId=null){if(busy)return;if(mode!=='demo'&&connected()&&!auth){$('#auth').showModal();return}busy=true;try{demo=mode==='demo';if(demo){const bank=await(await fetch('demo-questions.json')).json();demoItems=bank.map(x=>({...x,r:Math.random()})).sort((a,b)=>a.r-b.r).slice(0,15);state={position:0,total:demoItems.length,score:0,mode:'quiz',title:'სატესტო ქუიზი',expires_at:Date.now()/1000+600,finished:false,question:demoItems[0]}}else state=await rpc('start_game',{p_mode:mode,p_quiz:quizId});renderQuiz()}catch(e){alert(e.message)}finally{busy=false}}
+function renderQuiz(){clearInterval(clock);if(state.finished){main.innerHTML=`<section class="quiz card empty"><span class="tag">${demo?'დემო დასრულებულია':'ქუიზი დასრულებულია'}</span><h2>შენი შედეგი მზადაა.</h2><div class="score">${state.score}</div><p>${state.total*100} შესაძლო ქულიდან</p><p>${demo?'სატესტო მონახაზები; წყარო მითითებულია, სარედაქციო დამტკიცება ჯერ საჭიროა.':state.mode==='daily'?'შედეგი დღის საერთო რეიტინგში შენახულია.':'შედეგი ქუიზის რეიტინგში შენახულია.'}</p><button class="primary" id="again">მთავარ გვერდზე</button><button id="reviewResult">პასუხები და წყაროები</button></section>`;$('#again').onclick=home;$('#reviewResult').onclick=results;return}const q=state.question;main.innerHTML=`<section class="quiz"><div class="row"><span class="tag">${demo?'სატესტო მონახაზი':state.mode==='daily'?'დღის ქუიზი':esc(state.title)}</span><span>${state.position+1} /${state.total}</span><span style="margin-left:auto">${state.score} ქულა · <b id="timer"></b></span></div><div class="progress"><div style="width:${state.position/state.total*100}%"></div></div><article class="card"><span class="eyebrow">${esc(q.topic)}</span><h2>${esc(q.prompt)}</h2><div class="options">${q.options.map((o,i)=>`<button class="option" data-choice="${i}"><b>${'აბგდ'[i]}</b><span>${esc(o)}</span></button>`).join('')}</div><div id="feedback" aria-live="polite"></div></article></section>`;document.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>answer(Number(b.dataset.choice)));const tick=()=>{const left=Math.max(0,Math.ceil(state.expires_at-Date.now()/1000));if($('#timer'))$('#timer').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');if(left===0){clearInterval(clock);if(demo){state.finished=true;renderQuiz()}else if(!busy){answer(0)}}};tick();clock=setInterval(tick,1000)}
+async function answer(choice){if(busy)return;busy=true;document.querySelectorAll('[data-choice]').forEach(b=>b.disabled=true);try{let r;if(demo){const q=demoItems[state.position],correct=choice===q.answer_index;const next={...state,score:state.score+(correct?100:0),position:state.position+1};next.finished=next.position===next.total;next.question=demoItems[next.position];r={state:next}}else r=await rpc('answer_game',{p_session:state.session_id,p_position:state.position,p_choice:choice});state=r.state;renderQuiz()}catch(e){$('#feedback').innerHTML='<p class="error">'+esc(e.message)+'</p>';document.querySelectorAll('[data-choice]').forEach(b=>b.disabled=false)}finally{busy=false}}
+async function results(){try{const rows=demo?demoItems:await rpc('quiz_results',{p_session:state.session_id});main.innerHTML='<h1>პასუხები და წყაროები</h1>'+rows.map(q=>`<article class="card review"><h2>${esc(q.prompt)}</h2><strong>${esc(q.options[q.answer_index])}</strong><p>${esc(q.explanation)}</p><a href="${sourceLink(q.source_url)}" target="_blank" rel="noopener noreferrer">${esc(q.source_title)} ↗</a><p>${esc(q.source_locator)}</p></article>`).join('')+'<button id="backResult">შედეგზე დაბრუნება</button>';$('#backResult').onclick=renderQuiz}catch(e){alert(e.message)}}
+async function leaders(mode='quiz',quizId=null,period='week'){stopUpdates();clearInterval(clock);main.innerHTML=`<h1>რეიტინგი</h1><p>${mode==='daily'?'დღის ქუიზი: არჩეულ პერიოდში დასრულებული დღეების საშუალო პროცენტი.':'ქუიზები: თითო ქუიზზე პირველი ცდა, საშუალო პროცენტი. განსხვავებული სიგრძის ქუიზები პროცენტით ფასდება.'}</p><div class="row"><button id="quizLeaders" class="${mode==='quiz'?'primary':''}">ქუიზები</button><button id="dailyLeaders" class="${mode==='daily'?'primary':''}">დღის ქუიზი</button>${mode==='daily'?[['day','დღეს'],['week','კვირა'],['month','თვე']].map(([v,t])=>`<button data-period="${v}" class="${v===period?'primary':''}">${t}</button>`).join(''):''}</div>${mode==='quiz'?'<label>ქუიზი<select id="quizFilter"><option value="">ყველა ქუიზი</option>'+catalog.map(q=>`<option value="${esc(q.id)}" ${q.id===quizId?'selected':''}>${esc(q.title)}</option>`).join('')+'</select></label>':''}<section id="board" class="card" style="margin-top:22px">იტვირთება…</section>`;$('#quizLeaders').onclick=()=>leaders('quiz');$('#dailyLeaders').onclick=()=>leaders('daily');if($('#quizFilter'))$('#quizFilter').onchange=e=>leaders('quiz',e.target.value||null);document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>leaders(mode,quizId,b.dataset.period));try{const rows=connected()?await rpc('leaderboard',{p_mode:mode,p_quiz:quizId,p_period:period}):[];$('#board').innerHTML=rows.length?rows.map((r,i)=>`<div class="leader"><b>${i+1}</b><span>${esc(r.nickname)}<small style="display:block;color:var(--muted)">${r.rounds} დასრულებული ქუიზი</small></span><strong>${r.points}%</strong></div>`).join(''):`<div class="empty"><h2>${connected()?'პირველი ადგილი გელოდება.':'ონლაინ რეიტინგი ჯერ არ არის დაკავშირებული.'}</h2></div>`}catch(e){$('#board').textContent=e.message}}
 
-  async function api(path, opts) {
-    const res = await fetch(path, opts);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(err.error || res.statusText);
-    }
-    return res.json();
-  }
+function stopUpdates(){clearTimeout(updatePoll);updatePoll=null;updateEpoch++}
+function updatePanel(){return `<section class="card review" id="updatePanel"><h2>წყაროების აღმოჩენა და კითხვების მონახაზები</h2><p>განახლება ეძებს ახალ სამეცნიერო წყაროებს. წყაროს აღმოჩენა ჯერ კითხვის შექმნას არ ნიშნავს. შექმნილი კითხვები ინახება მხოლოდ მონახაზებად და გამოქვეყნებამდე შემოწმებას საჭიროებს.</p><button class="primary" id="runUpdates">კითხვების ბაზის განახლება</button><p id="updateMessage" aria-live="polite">განახლების პარამეტრები იტვირთება…</p><div id="updateStatus"></div><div id="updateFlags"></div><div id="updateSources"></div></section>`}
+async function updaterRequest(path,method='GET',body){if(!auth?.access_token)throw Error('განახლებისთვის შედით ადმინისტრატორის ანგარიშით');await rpc('game_info');const r=await fetch(path,{method,headers:{Authorization:'Bearer '+auth.access_token,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});const data=await r.json().catch(()=>null);if(!r.ok)throw Error(data?.error||data?.message||'განახლების სერვისთან დაკავშირება ვერ მოხერხდა');return data}
+const updateStatusLabel=s=>({queued:'რიგშია',running:'მიმდინარეობს',completed:'დასრულებულია',complete:'დასრულებულია',succeeded:'დასრულებულია',partial:'ნაწილობრივ დასრულებულია',drafted:'მონახაზები შექმნილია',draft_failed:'მონახაზი ვერ შეიქმნა',failed:'შეცდომა',draft:'მონახაზი',discovered:'აღმოჩენილი წყარო',new:'ახალი წყარო',processed:'დამუშავებულია'}[s]||s||'უცნობი სტატუსი');
+function updateSummary(summary){if(!summary)return '';if(typeof summary!=='object')return esc(summary);return Object.entries(summary).map(([k,v])=>`${esc(({checked:'შემოწმებული წყაროები',changed:'შეცვლილი წყაროები',unreachable:'მიუწვდომელი წყაროები',discovered:'მოძიებული ჩანაწერები',sources_found:'აღმოჩენილი წყაროები',sources_added:'დამატებული წყაროები',new_sources:'ახალი წყაროები',drafts_created:'შექმნილი მონახაზები',questions_created:'შექმნილი მონახაზები',errors:'შეცდომები',fetched:'შემოწმებული წყაროები',added:'დამატებული წყაროები',skipped:'გამოტოვებული წყაროები'}[k]\vert{}\vert{}k))}: ${esc(typeof v==='object'?JSON.stringify(v):v)}`).join(' · ')}
+function updateDate(v){if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?esc(v):esc(d.toLocaleString('ka-GE'))}
+function renderUpdates(data,epoch){if(epoch!==updateEpoch||!$('#updatePanel'))return;const button=$('#runUpdates');button.disabled=!data.configured;$('#updateMessage').textContent=data.configured?'წყაროების აღმოჩენის სერვისი დაკავშირებულია. აღმოჩენილი წყაროები ავტომატურად არ ქვეყნდება.':'განახლების სერვისი ჯერ არ არის გამართული. საჭიროა სერვერის კონფიგურაცია.';$('#updateStatus').innerHTML=`<p>შემდეგი დაგეგმილი შემოწმება: ${updateDate(data.next_due)}</p><p>${data.ai_enabled?'წყაროების ავტომატური აღმოჩენა კითხვების დამტკიცებას არ ნიშნავს. თამაშისთვის გარე API საჭირო არ არის.':'ეს განახლება მხოლოდ წყაროებს აღმოაჩენს. თამაშს ფასიანი ხელოვნური ინტელექტი ან გარე API-ს ინტეგრაცია არ სჭირდება; წყაროების სერვერი არჩევითია.'}</p>`+(data.jobs||[]).slice(0,8).map(j=>`<div class="review"><strong>${esc(updateStatusLabel(j.status))}</strong><p>დაწყება: ${updateDate(j.started_at)} · დასრულება: ${updateDate(j.finished_at)}</p><p>${updateSummary(j.summary)}</p></div>`).join('');$('#updateFlags').innerHTML=(data.flags||[]).map(f=>`<article class="notice"><strong>${esc(f.prompt)}</strong><p>${esc(f.reason)}</p><button data-clear-flag="${esc(f.id)}">გადავამოწმე — პასუხი კვლავ სწორია</button></article>`).join('');document.querySelectorAll('[data-clear-flag]').forEach(b=>b.onclick=async()=>{try{await rpc('clear_question_flag',{p_id:b.dataset.clearFlag});loadUpdates(epoch)}catch(e){alert(e.message)}});$('#updateSources').innerHTML=(data.sources||[]).map(source=>`<article class="card review"><span class="tag">${esc(source.topic\vert{}\vert{}'ახალი წყარო')}</span><h3>${esc(source.title)}</h3><p>${esc(updateStatusLabel(source.status))} · გამოქვეყნების თარიღი: ${updateDate(source.published_at)}</p><a href="${sourceLink(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.url)}</a><p><button data-source-draft="${esc(source.id)}" ${data.ai_enabled&&source.status!=='drafted'?'':'disabled'}>წყაროდან კითხვების მონახაზების შექმნა</button></article>`).join('')||'<p>აღმოჩენილი წყაროები ჯერ არ არის.</p>';document.querySelectorAll('[data-source-draft]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const result=await updaterRequest('/api/drafts','POST',{source_id:b.dataset.sourceDraft});if(epoch!==updateEpoch)return;await loadUpdates(epoch);if($('#updateMessage'))$('#updateMessage').textContent='მოთხოვნა შესრულებულია. შედეგი ინახება მხოლოდ მონახაზად: '+(typeof result.summary==='string'?result.summary:JSON.stringify(result.summary||result));}catch(e){if(epoch===updateEpoch&&$('#updateMessage'))$('#updateMessage').textContent=e.message;}finally{if(epoch===updateEpoch&&b.isConnected)b.disabled=false}})}
+async function loadUpdates(epoch){const data=await updaterRequest('/api/updates');renderUpdates(data,epoch);return data}
+function bindUpdates(){const epoch=updateEpoch;loadUpdates(epoch).catch(e=>{if(epoch===updateEpoch&&$('#updateMessage'))$('#updateMessage').textContent=e.message});$('#runUpdates').onclick=async()=>{stopUpdates();const current=updateEpoch;const button=$('#runUpdates');button.disabled=true;$('#updateMessage').textContent='წყაროების შემოწმების დაწყება…';try{const result=await updaterRequest('/api/updates','POST');if(current!==updateEpoch)return;let attempts=0;const poll=async()=>{if(current!==updateEpoch)return;attempts++;try{const data=await loadUpdates(current);if(current!==updateEpoch)return;const job=(data.jobs||[]).find(j=>j.id===result.job_id);if(job&&['completed','complete','succeeded','partial','failed'].includes(job.status))return;if(attempts<20)updatePoll=setTimeout(poll,3000);else if($('#updateMessage'))$('#updateMessage').textContent='შემოწმება შესაძლოა ჯერ მიმდინარეობდეს. სტატუსის სანახავად ხელახლა გახსენით მართვის გვერდი.';}catch(e){if(current===updateEpoch&&$('#updateMessage'))$('#updateMessage').textContent=e.message;}};await poll();}catch(e){if(current===updateEpoch&&$('#updateMessage'))$('#updateMessage').textContent=e.message;}finally{if(current===updateEpoch&&button.isConnected)button.disabled=false}}}
 
-  function showView(viewId) {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    const target = $(viewId);
-    if (target) target.classList.add('active');
-    window.scrollTo(0, 0);
-  }
-
-  async function loadCatalog() {
-    showView('view-catalog');
-    const list = $('quiz-list');
-    if (!list) return;
-    list.innerHTML = '<div class="loading">იტვირთება...</div>';
-
-    try {
-      const quizzes = await api('/api/quizzes');
-      if (!quizzes || !quizzes.length) {
-        list.innerHTML = '<div class="empty">ქუიზები ჯერ არ არის დამატებული.</div>';
-        return;
-      }
-
-      list.innerHTML = '';
-      quizzes.forEach(q => {
-        const card = document.createElement('div');
-        card.className = 'quiz-card';
-        card.innerHTML = `
-          <div class="quiz-theme">${q.theme || ''}</div>
-          <h3 class="quiz-title">${q.title}</h3>
-          <div class="quiz-meta">${q.question_count || 15} კითხვა</div>
-          <button class="btn btn-primary start-btn">დაწყება →</button>
-        `;
-        card.querySelector('.start-btn').addEventListener('click', () => startQuiz(q.id));
-        list.appendChild(card);
-      });
-    } catch (e) {
-      list.innerHTML = `<div class="error">შეცდომა: ${e.message}</div>`;
-    }
-  }
-
-  async function startQuiz(quizId) {
-    try {
-      const data = await api(`/api/quizzes/${quizId}`);
-      currentQuiz = data.quiz;
-      currentQuestions = data.questions || [];
-
-      if (!currentQuestions.length) {
-        alert('ქუიზში კითხვები ვერ მოიძებნა!');
-        return;
-      }
-
-      currentIndex = 0;
-      score = 0;
-      userAnswers = [];
-      startTime = Date.now();
-
-      showView('view-play');
-      renderQuestion();
-    } catch (e) {
-      alert('ვერ ჩაიტვირთა ქუიზი: ' + e.message);
-    }
-  }
-
-  function renderQuestion() {
-    const q = currentQuestions[currentIndex];
-    const total = currentQuestions.length;
-
-    $('play-theme').textContent = currentQuiz.theme \vert{}\vert{} '';$('play-counter').textContent = `კითხვა ${currentIndex + 1} / ${total}`;
-    $('play-prompt').textContent = q.prompt;
-
-    const optContainer = $('play-options');
-    optContainer.innerHTML = '';
-
-    q.options.forEach((opt, idx) => {
-      const btn = document.createElement('button');
-      btn.className = 'option-btn';
-      btn.textContent = opt;
-      btn.addEventListener('click', () => handleAnswer(idx));
-      optContainer.appendChild(btn);
-    });
-
-    $('play-explanation').style.display = 'none';$('play-next-btn').style.display = 'none';
-  }
-
-  function handleAnswer(choiceIdx) {
-    const q = currentQuestions[currentIndex];
-    const isCorrect = Number(choiceIdx) === Number(q.answer_index);
-    if (isCorrect) score += 100;
-
-    userAnswers.push({ question_id: q.id, choice: choiceIdx, isCorrect });
-
-    const buttons = $('play-options').querySelectorAll('.option-btn');
-    buttons.forEach((b, idx) => {
-      b.disabled = true;
-      if (idx === Number(q.answer_index)) b.classList.add('correct');
-      if (idx === Number(choiceIdx) && !isCorrect) b.classList.add('incorrect');
-    });
-
-    const exp = $('play-explanation');
-    exp.innerHTML = `
-      <div class="exp-title">${isCorrect ? 'სწორია!' : 'არასწორია!'}</div>
-      <div class="exp-text">${q.explanation || ''}</div>
-      ${q.source_url ? `<a class="exp-link" href="${q.source_url}" target="_blank" rel="noopener">წყარო: ${q.source_title || 'გადასვლა'}</a>` : ''}
-    `;
-    exp.style.display = 'block';
-
-    const nextBtn = $('play-next-btn');
-    nextBtn.style.display = 'block';
-    nextBtn.textContent = (currentIndex + 1 < currentQuestions.length) ? 'შემდეგი კითხვა →' : 'შედეგის ნახვა →';
-  }
-
-  $('play-next-btn')?.addEventListener('click', () => {
-    currentIndex++;
-    if (currentIndex < currentQuestions.length) {
-      renderQuestion();
-    } else {
-      finishQuiz();
-    }
-  });
-
-  function finishQuiz() {
-    showView('view-result');
-    const totalPossible = currentQuestions.length * 100;
-    $('result-score').textContent = score;
-    $('result-total').textContent = `${totalPossible} შესაძლო ქულიდან`;
-  }
-
-  // Navigation tabs
-  $('nav-play')?.addEventListener('click', () => loadCatalog());
-  $('nav-home')?.addEventListener('click', () => loadCatalog());$('result-home-btn')?.addEventListener('click', () => loadCatalog());
-
-  // Init
-  loadCatalog();
-})();
+async function bulkImport(kind,file){if(importRunning)return;const progress=$('#importProgress');let committed=0,inserted=0;try{if(!auth||!info.editor)throw Error('ატვირთვა მხოლოდ შესულ რედაქტორს შეუძლია');if(!file)return;const items=JSON.parse(await file.text());if(!Array.isArray(items))throw Error('ფაილი უნდა შეიცავდეს JSON მასივს');if(items.length>10000)throw Error('ერთ ფაილში 10,000-ზე მეტი ჩანაწერი არ დაიშვება; გაყავით ფაილი ნაწილებად');if(!items.length)throw Error('ფაილი ცარიელია');importRunning=true;$('#import').disabled=true;$('#importQuiz').disabled=true;const size=kind==='questions'?500:50,total=Math.ceil(items.length/size);for(let offset=0;offset<items.length;offset+=size){if(progress.isConnected)progress.textContent=`იტვირთება ნაწილი ${committed+1}/${total} · დასრულებულია ${offset}/${items.length} ჩანაწერი…`;const result=await rpc(kind==='questions'?'import_questions':'import_quizzes',{p_items:items.slice(offset,offset+size)});committed++;const count=typeof result==='number'?result:result?.inserted??result?.count??result?.added;inserted+=Number(count)||0;}importNotice=`ატვირთვა დასრულებულია: ${committed} ნაწილი, ${items.length} დამუშავებული ჩანაწერი, სერვერის მიხედვით ${inserted} დამატებული. ეს არის კითხვის ვარიანტების რაოდენობა — დამოუკიდებელი კონცეფციების რაოდენობას ოჯახები აჩვენებს. ყველა ახალი კითხვა მონახაზია.`;await refreshInfo();await admin();}catch(e){importNotice=`${e.message} · წარმატებით შენახულია ${committed} ნაწილი. ატვირთვის გამეორება უსაფრთხოა იგივე UUID-ებით: უკვე შენახული ჩანაწერები დუბლიკატებად არ ემატება.`;const target=$('#importProgress');if(target)target.textContent=importNotice;}finally{importRunning=false;if($('#import'))$('#import').disabled=false;if($('#importQuiz'))$('#importQuiz').disabled=false}}
+async function loadFamilies(bankFilter='main'){const target=$('#familyDrafts');try{const rows=await rpc('editor_families');if(!target.isConnected)return;const families=(Array.isArray(rows)?rows:[]).filter(f=>(f.bank||'legacy')===bankFilter);target.innerHTML='<label>ბაზა<select id="familyBank"><option value="main">ძირითადი</option><option value="reserve">სარეზერვო</option><option value="legacy">ადრინდელი კითხვები</option></select></label><h2>კითხვების ოჯახების შემოწმება</h2><p>ოჯახი აერთიანებს ერთი კონცეფციის ან გამოთვლის წესის ვარიანტებს. თითოეული ოჯახის დამტკიცება მოითხოვს მისი შაბლონის, წყაროსა და ყველა ვარიანტის მოქმედი ლოგიკის დამოუკიდებელ შემოწმებას. მაგალითის წაკითხვა სრულ შემოწმებას ვერ ანაცვლებს.</p><p>'+families.length+' ოჯახი · ნაჩვენებია მაქსიმუმ 200 ოჯახი.</p>'+families.slice(0,200).map((f,i)=>`<article class="card review"><span class="tag">${esc(f.topic)} · ${esc(f.bank\vert{}\vert{}'ძირითადი ბაზა')}</span><h3>${esc(f.family_id)}</h3><p>${esc(typeof f.questions==='number'?f.questions:Array.isArray(f.questions)?f.questions.length:f.question_count\vert{}\vert{}0)} ვარიანტი</p><p>${esc(f.example_prompt)}</p><label><input type="checkbox" id="familyCheck${i}"> დამოუკიდებლად გადავამოწმე ოჯახის შაბლონი, წყარო, პასუხი და მათემატიკური ლოგიკა ყველა ვარიანტისთვის.</label
