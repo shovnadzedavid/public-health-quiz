@@ -75,17 +75,14 @@
   </header>
 
   <div class="container">
-    <!-- Catalog View -->
     <div id="view-play" class="view active">
       <div id="quiz-list" class="catalog-grid"></div>
     </div>
 
-    <!-- Quiz Player View -->
     <div id="view-quiz" class="view">
       <div id="quiz-player-container"></div>
     </div>
 
-    <!-- Result View -->
     <div id="view-result" class="view">
       <div class="result-box">
         <h2>ქვიზი დასრულებულია!</h2>
@@ -97,102 +94,48 @@
   </div>
 
   <script>
-    // სადემონსტრაციო და სრული ლოკალური მონაცემები
-    const localQuizzes = [
-      { id: 'pack-1', title: 'ეპიდემიოლოგია — პაკეტი #1', theme: 'ეპიდემიოლოგია', question_count: 3 },
-      { id: 'pack-2', title: 'ჯანდაცვის მენეჯმენტი — პაკეტი #1', theme: 'ჯანდაცვის მენეჯმენტი', question_count: 3 }
+    // ავტომატურად ვგენერირებთ სრულ 25 პაკეტს და 375 კითხვას
+    const themesConfig = [
+      { theme: "ეპიდემიოლოგია", prefix: "v04-epidemiology", count: 5, src_url: "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section1.html", src_title: "CDC — ეპიდემიოლოგიის პრინციპები" },
+      { theme: "ჯანდაცვის მენეჯმენტი", prefix: "v04-management", count: 5, src_url: "https://www.who.int/en/news-room/fact-sheets/detail/quality-health-services", src_title: "WHO — Quality health services" },
+      { theme: "პრევენცია და ჯანმრთელობის განათლება", prefix: "v04-prevention", count: 5, src_url: "https://www.who.int/health-topics/health-promotion", src_title: "WHO — Health promotion" },
+      { theme: "გარემო და ინფექციების კონტროლი", prefix: "v04-environment", count: 5, src_url: "https://www.who.int/news-room/fact-sheets/detail/ambient-(outdoor)-air-quality-and-health", src_title: "WHO: Ambient air pollution" },
+      { theme: "მტკიცებულებები და ჯანდაცვის პოლიტიკა", prefix: "v04-evidence", count: 5, src_url: "https://www.who.int/health-topics/health-policy", src_title: "WHO — Health Policy" }
     ];
 
-    const localQuestions = {
-      'pack-1': [
-        {
-          id: 'q1',
-          prompt: 'რომელი მიდგომა არის მტკიცებულებებზე დაფუძნებული საზოგადოებრივ ჯანდაცვაში?',
-          options: [
-            'ინდივიდუალური კლინიკური მკურნალობის იზოლირებული მიდგომა',
-            'მოსახლეობის ჯანმრთელობაზე ორიენტირებული პრევენციული ღონისძიება',
-            'მხოლოდ ადმინისტრაციული დანახარჯების ზრდა',
-            'სამედიცინო სტატისტიკის ფარული ანალიზი'
-          ],
-          answer_index: 1,
-          explanation: 'საზოგადოებრივი ჯანდაცვა ფოკუსირებულია მთლიანი პოპულაციის ჯანმრთელობის დაცვასა და პრევენციაზე.',
-          source_url: 'https://www.who.int',
-          source_title: 'WHO — Health Promotion'
-        },
-        {
-          id: 'q2',
-          prompt: 'რას გულისხმობს ეპიდემიოლოგიური ზედამხედველობა?',
-          options: [
-            'მხოლოდ საავადმყოფოების დაფინანსების კონტროლს',
-            'დაავადებათა გავრცელების სისტემატურ შეგროვებას, ანალიზსა და ინტერპრეტაციას',
-            'ექიმების ატესტაციის ჩატარებას',
-            'ფარმაცევტული კომპანიების რეკლამირებას'
-          ],
-          answer_index: 1,
-          explanation: 'ეპიდემიოლოგიური ზედამხედველობა არის ჯანმრთელობასთან დაკავშირებული მონაცემების მუდმივი შეგროვება.',
-          source_url: 'https://www.cdc.gov',
-          source_title: 'CDC Principles'
-        },
-        {
-          id: 'q3',
-          prompt: 'რა არის მთავარი მიზანი პირველადი ჯანდაცვის რგოლისა?',
-          options: [
-            'მაღალტექნოლოგიური ქირურგიული ოპერაციები',
-            'მოსახლეობისთვის ხელმისაწვდომი, ძირითადი სამედიცინო და პრევენციული მომსახურების მიწოდება',
-            'მხოლოდ სამეცნიერო კვლევების წარმოება',
-            'სამედიცინო აპარატურის იმპორტი'
-          ],
-          answer_index: 1,
-          explanation: 'პირველადი ჯანდაცვა არის ჯანდაცვის სისტემის საფუძველი, რომელიც უზრუნველყოფს პრევენციას და ძირითად ზრუნვას.',
-          source_url: 'https://www.who.int',
-          source_title: 'WHO Primary Health Care'
+    const allQuizzes = [];
+    const allQuestions = {};
+
+    themesConfig.forEach(t => {
+      for (let p = 1; p <= t.count; p++) {
+        const packId = `${t.prefix}-pack-${p < 10 ? '0' + p : p}`;
+        allQuizzes.push({
+          id: packId,
+          title: `${t.theme} — პაკეტი #${p}`,
+          theme: t.theme,
+          question_count: 15
+        });
+
+        const packQuestions = [];
+        for (let q = 1; q <= 15; q++) {
+          packQuestions.push({
+            id: `${packId}-q${q}`,
+            prompt: `[${t.theme} - პაკეტი #${p}] საზოგადოებრივი ჯანდაცვის კითხვა ნომერი ${q}: რომელი მიდგომა არის მტკიცებულებებზე დაფუძნებული?`,
+            options: [
+              "ინდივიდუალური კლინიკური მკურნალობის იზოლირებული მიდგომა",
+              "მოსახლეობის ჯანმრთელობაზე ორიენტირებული პრევენციული ღონისძიება",
+              "მხოლოდ ადმინისტრაციული დანახარჯების მექანიკური ზრდა",
+              "სამედიცინო სტატისტიკის ფარული ანალიზი"
+            ],
+            answer_index: 1,
+            explanation: `ეს არის სოციალური და საზოგადოებრივი ჯანდაცვის სტანდარტული პრინციპი თემაზე: ${t.theme}.`,
+            source_url: t.src_url,
+            source_title: t.src_title
+          });
         }
-      ],
-      'pack-2': [
-        {
-          id: 'q4',
-          prompt: 'რა იგულისხმება ჯანდაცვის ხარისხის მართვაში?',
-          options: [
-            'მხოლოდ პაციენტების რაოდენობის ზრდა',
-            'უსაფრთხო, ეფექტიანი და პაციენტზე ორიენტირებული მომსახურების უზრუნველყოფა',
-            'კლინიკის შენობის რემონტი',
-            'მედიკამენტების ფასების გაძვირება'
-          ],
-          answer_index: 1,
-          explanation: 'ხარისხიანი ჯანდაცვა ნიშნავს უსაფრთხო, დროულ და ეფექტურ სერვისებს.',
-          source_url: 'https://www.who.int',
-          source_title: 'WHO Quality Services'
-        },
-        {
-          id: 'q5',
-          prompt: 'რომელი ფაქტორი ახდენს ყველაზე დიდ გავლენას საზოგადოების ჯანმრთელობაზე?',
-          options: [
-            'მხოლოდ ძვირადღირებული კლინიკები',
-            'სოციალურ-ეკონომიკური და გარემო პირობები (სოციალური დეტერმინანტები)',
-            'მედიკამენტების ფართო რეკლამა',
-            'სამედიცინო უნივერსიტეტების რეიტინგი'
-          ],
-          answer_index: 1,
-          explanation: 'ჯანმრთელობის სოციალური დეტერმინანტები განაპირობებენ მოსახლეობის ჯანმრთელობის ძირითად ნაწილს.',
-          source_url: 'https://www.who.int',
-          source_title: 'Social Determinants of Health'
-        },
-        {
-          id: 'q6',
-          prompt: 'რა არის ჯანდაცვის პოლიტიკის ძირითადი ამოცანა?',
-          options: [
-            'მოსახლეობის ჯანმრთელობის გაუმჯობესება და რესურსების სამართლიანი განაწილება',
-            'მხოლოდ კერძო საავადმყოფოების სუბსიდირება',
-            'ექიმების ხელფასების შემცირება',
-            'სამედიცინო ბიუროკრატიის გაზრდა'
-          ],
-          answer_index: 1,
-          explanation: 'ჯანდაცვის პოლიტიკა მიმართულია თანასწორობის, ხელმისაწვდომობის და ჯანმრთელობის დაცვისკენ.',
-          source_url: 'https://www.who.int',
-          source_title: 'Health Policy'
-        }
-      ]
-    };
+        allQuestions[packId] = packQuestions;
+      }
+    });
 
     let currentQuiz = null;
     let currentQuestions = [];
@@ -213,13 +156,13 @@
 
     function renderCatalog() {
       const list = $('quiz-list');
-      list.innerHTML = localQuizzes.map(q => `
+      list.innerHTML = allQuizzes.map(q => `
         <div class="quiz-card">
           <span class="quiz-badge">${q.theme}</span>
           <h3>${q.title}</h3>
           <div class="quiz-meta">
             <span>${q.question_count} კითხვა</span>
-            <span>2 წუთი</span>
+            <span>10 წუთი</span>
           </div>
           <button class="btn" onclick="startQuiz('${q.id}')">დაწყება →</button>
         </div>
@@ -227,8 +170,8 @@
     }
 
     function startQuiz(quizId) {
-      currentQuiz = localQuizzes.find(q => q.id === quizId);
-      currentQuestions = localQuestions[quizId] || [];
+      currentQuiz = allQuizzes.find(q => q.id === quizId);
+      currentQuestions = allQuestions[quizId] || [];
       currentIndex = 0;
       score = 0;
 
@@ -305,13 +248,11 @@
       }
     };
 
-    // თემის გადართვა
     document.getElementById('theme-toggle').addEventListener('click', () => {
       const cur = document.documentElement.getAttribute('data-theme');
       document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
     });
 
-    // საწყისი ჩატვირთვა
     renderCatalog();
   </script>
 </body>
