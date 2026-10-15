@@ -7,66 +7,166 @@
   <style>
     :root {
       --bg: #0b0f19;
-      --card-bg: #131b2e;
+      --card-bg: rgba(19, 27, 46, 0.75);
       --text: #f3f4f6;
       --text-muted: #9ca3af;
       --primary: #10b981;
       --primary-hover: #059669;
-      --border: #1f2937;
+      --border: rgba(255, 255, 255, 0.08);
       --danger: #ef4444;
       --success: #10b981;
     }
     [data-theme="light"] {
-      --bg: #f9fafb;
-      --card-bg: #ffffff;
+      --bg: #f3f4f6;
+      --card-bg: rgba(255, 255, 255, 0.85);
       --text: #111827;
       --text-muted: #6b7280;
       --primary: #059669;
       --primary-hover: #047857;
-      --border: #e5e7eb;
+      --border: rgba(0, 0, 0, 0.08);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     
-    header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; border-bottom: 1px solid var(--border); background: var(--card-bg); }
-    .logo { font-weight: bold; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; color: var(--primary); cursor: pointer; }
+    body {
+      background: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 40%),
+                  radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.3s ease;
+    }
+
+    header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      padding: 1rem 2rem; 
+      border-bottom: 1px solid var(--border); 
+      background: var(--card-bg); 
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo { font-weight: 700; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; color: var(--primary); cursor: pointer; }
     nav { display: flex; gap: 1.5rem; }
-    nav a { color: var(--text-muted); text-decoration: none; cursor: pointer; font-weight: 500; }
+    nav a { color: var(--text-muted); text-decoration: none; cursor: pointer; font-weight: 500; transition: color 0.2s; }
     nav a.active, nav a:hover { color: var(--primary); }
     
-    .actions { display: flex; gap: 1rem; align-items: center; }
-    .btn { background: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; text-decoration: none; transition: background 0.2s; }
-    .btn:hover { background: var(--primary-hover); }
+    .actions { display: flex; gap: 0.8rem; align-items: center; }
+    .btn { background: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+    .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
     .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    .btn-secondary:hover { background: var(--border); }
-    
+    .btn-secondary:hover { background: rgba(255,255,255,0.05); }
+
     .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; flex: 1; width: 100%; }
-    .view { display: none; }
-    .view.active { display: block; }
+    
+    .view { display: none; opacity: 0; transform: translateY(8px); transition: opacity 0.3s ease, transform 0.3s ease; }
+    .view.active { display: block; opacity: 1; transform: translateY(0); }
 
     .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
-    .quiz-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .quiz-card { 
+      background: var(--card-bg); 
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border); 
+      border-radius: 1rem; 
+      padding: 1.5rem; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 1rem; 
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); 
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .quiz-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(16, 185, 129, 0.4);
+      box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.2);
+    }
     .quiz-badge { font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); color: var(--primary); padding: 0.25rem 0.75rem; border-radius: 1rem; width: fit-content; font-weight: 600; }
     .quiz-card h3 { font-size: 1.1rem; line-height: 1.4; }
     .quiz-meta { font-size: 0.85rem; color: var(--text-muted); display: flex; justify-content: space-between; }
 
-    .player-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 1rem; padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem; }
+    .player-box { 
+      background: var(--card-bg); 
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border); 
+      border-radius: 1rem; 
+      padding: 2rem; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 1.5rem; 
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+    }
     .player-top { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 0.9rem; }
     .progress-bar { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+    .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s ease; }
     .player-prompt { font-size: 1.25rem; line-height: 1.5; }
     
     .options-grid { display: flex; flex-direction: column; gap: 0.75rem; }
-    .option-btn { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 1rem; border-radius: 0.5rem; text-align: left; cursor: pointer; font-size: 1rem; transition: all 0.2s; display: flex; gap: 1rem; align-items: center; }
-    .option-btn:hover:not(:disabled) { border-color: var(--primary); background: rgba(16, 185, 129, 0.05); }
-    .option-btn.correct { background: rgba(16, 185, 129, 0.2); border-color: var(--success); color: var(--success); }
-    .option-btn.incorrect { background: rgba(239, 68, 68, 0.2); border-color: var(--danger); color: var(--danger); }
+    .option-btn { 
+      background: rgba(255,255,255,0.02); 
+      border: 1px solid var(--border); 
+      color: var(--text); 
+      padding: 1rem; 
+      border-radius: 0.75rem; 
+      text-align: left; 
+      cursor: pointer; 
+      font-size: 1rem; 
+      transition: all 0.2s ease; 
+      display: flex; 
+      gap: 1rem; 
+      align-items: center; 
+    }
+    .option-btn:hover:not(:disabled) { border-color: var(--primary); background: rgba(16, 185, 129, 0.05); transform: translateX(4px); }
+    .option-btn.correct { background: rgba(16, 185, 129, 0.15); border-color: var(--success); color: var(--success); }
+    .option-btn.incorrect { background: rgba(239, 68, 68, 0.15); border-color: var(--danger); color: var(--danger); }
     
-    .explanation-box { background: var(--bg); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; margin-top: 1rem; font-size: 0.95rem; line-height: 1.5; }
+    .explanation-box { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; margin-top: 1rem; font-size: 0.95rem; line-height: 1.5; }
     
-    .result-box, .auth-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 1rem; padding: 3rem 2rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; max-width: 450px; margin: 0 auto; }
-    .result-score { font-size: 4rem; font-weight: bold; color: var(--primary); }
-    .auth-box input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.8rem; border-radius: 0.5rem; outline: none; }
+    .result-box, .auth-box { 
+      background: var(--card-bg); 
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border); 
+      border-radius: 1rem; 
+      padding: 3rem 2rem; 
+      text-align: center; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      gap: 1.5rem; 
+      max-width: 450px; 
+      margin: 0 auto; 
+      box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+    }
+    .result-score { font-size: 4rem; font-weight: 800; color: var(--primary); }
+    
+    .auth-box input { 
+      width: 100%; 
+      background: rgba(255,255,255,0.03); 
+      border: 1px solid var(--border); 
+      color: var(--text); 
+      padding: 0.9rem 1rem; 
+      border-radius: 0.75rem; 
+      outline: none; 
+      font-size: 1rem;
+    }
+    .auth-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
+    
+    .table-container { 
+      background: var(--card-bg); 
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border); 
+      border-radius: 1rem; 
+      overflow: hidden; 
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+    th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -74,153 +174,73 @@
   <header>
     <div class="logo" onclick="navigate('play')">🌿 ჯანდაცვის გამოწვევა</div>
     <nav>
-      <a data-route="play" class="active" onclick="navigate('play')">თამაში</a>
+      <a data-route="play" onclick="navigate('play')">თამაში</a>
       <a data-route="leaderboard" onclick="navigate('leaderboard')">რეიტინგი</a>
     </nav>
-    <div class="actions">
-      <button class="btn btn-secondary" id="theme-toggle">🌓</button>
-      <button class="btn" onclick="navigate('auth')">შესვლა</button>
+    <div class="actions" id="header-actions">
+      <button class="btn btn-secondary" id="theme-toggle" title="თემის გადართვა">🌓</button>
+      <button class="btn btn-secondary" onclick="navigate('auth')">შესვლა</button>
+      <button class="btn" onclick="navigate('auth')">რეგისტრაცია</button>
     </div>
   </header>
 
   <div class="container">
+    <!-- Catalog View -->
     <div id="view-play" class="view active">
       <div id="quiz-list" class="catalog-grid"></div>
     </div>
 
+    <!-- Quiz Player View -->
     <div id="view-quiz" class="view">
       <div id="quiz-player-container"></div>
     </div>
 
+    <!-- Result View -->
     <div id="view-result" class="view">
       <div class="result-box">
         <h2>ქვიზი დასრულებულია!</h2>
         <div class="result-score" id="res-score">0</div>
         <p id="res-total" style="color: var(--text-muted);">შესაძლო ქულიდან</p>
-        <button class="btn" onclick="navigate('play')">მთავარ გვერდზე დაბრუნება</button>
+        <button class="btn" style="width:100%;" onclick="navigate('play')">მთავარ გვერდზე დაბრუნება</button>
       </div>
     </div>
 
+    <!-- Leaderboard View -->
     <div id="view-leaderboard" class="view">
-      <div class="result-box">
-        <h2>რეიტინგები</h2>
-        <p style="color: var(--text-muted);">მონაცემები ჯერ არ არის.</p>
-        <button class="btn" onclick="navigate('play')">მთავარ გვერდზე</button>
+      <h2 style="margin-bottom: 1.5rem; font-weight: 700;">🏆 საუკეთესო შედეგები</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>მონაწილე</th>
+              <th>ქუიზი</th>
+              <th>ქულა</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-tbody">
+            <tr><td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">ჩანაწერები ჯერ არ არის.</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
+    <!-- Auth View -->
     <div id="view-auth" class="view">
       <div class="auth-box">
-        <h2>ავტორიზაცია</h2>
-        <input type="email" id="auth-email" placeholder="ელ-ფოსტა">
-        <input type="password" id="auth-password" placeholder="პაროლი">
-        <button class="btn" style="width:100%;" onclick="handleAuth()">შესვლა</button>
-        <div id="auth-msg" style="font-size: 0.85rem; color: var(--primary);"></div>
+        <div style="text-align: center;">
+          <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.3rem;">ავტორიზაცია</h2>
+          <p style="color: var(--text-muted); font-size: 0.9rem;">შედით სისტემაში ქულების შესანახად</p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+          <input type="email" id="auth-email" placeholder="ელ-ფოსტა">
+          <input type="password" id="auth-password" placeholder="პაროლი">
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn" style="flex:1;" onclick="handleLogin()">შესვლა</button>
+            <button class="btn btn-secondary" style="flex:1;" onclick="handleSignUp()">რეგისტრაცია</button>
+          </div>
+        </div>
+        <div id="auth-msg" style="font-size: 0.85rem; text-align: center; color: var(--primary);"></div>
       </div>
     </div>
   </div>
-
-  <script>
-    const themesConfig = [
-      { theme: "ეპიდემიოლოგია", prefix: "v04-epidemiology", count: 5, src_url: "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section1.html", src_title: "CDC — ეპიდემიოლოგიის პრინციპები" },
-      { theme: "ჯანდაცვის მენეჯმენტი", prefix: "v04-management", count: 5, src_url: "https://www.who.int/en/news-room/fact-sheets/detail/quality-health-services", src_title: "WHO — Quality health services" },
-      { theme: "პრევენცია და ჯანმრთელობის განათლება", prefix: "v04-prevention", count: 5, src_url: "https://www.who.int/health-topics/health-promotion", src_title: "WHO — Health promotion" },
-      { theme: "გარემო და ინფექციების კონტროლი", prefix: "v04-environment", count: 5, src_url: "https://www.who.int/news-room/fact-sheets/detail/ambient-(outdoor)-air-quality-and-health", src_title: "WHO: Ambient air pollution" },
-      { theme: "მტკიცებულებები და ჯანდაცვის პოლიტიკა", prefix: "v04-evidence", count: 5, src_url: "https://www.who.int/health-topics/health-policy", src_title: "WHO — Health Policy" }
-    ];
-
-    const allQuizzes = [];
-    const allQuestions = {};
-
-    themesConfig.forEach(t => {
-      for (let p = 1; p <= t.count; p++) {
-        const packId = `${t.prefix}-pack-${p < 10 ? '0' + p : p}`;
-        allQuizzes.push({ id: packId, title: `${t.theme} — პაკეტი #${p}`, theme: t.theme, question_count: 15 });
-
-        const packQuestions = [];
-        for (let q = 1; q <= 15; q++) {
-          packQuestions.push({
-            id: `${packId}-q${q}`,
-            prompt: `[${t.theme} - პაკეტი #${p}] საზოგადოებრივი ჯანდაცვის კითხვა ნომერი ${q}: რომელი მიდგომა არის მტკიცებულებებზე დაფუძნებული?`,
-            options: [
-              "ინდივიდუალური კლინიკური მკურნალობის იზოლირებული მიდგომა",
-              "მოსახლეობის ჯანმრთელობაზე ორიენტირებული პრევენციული ღონისძიება",
-              "მხოლოდ ადმინისტრაციული დანახარჯების მექანიკური ზრდა",
-              "სამედიცინო სტატისტიკის ფარული ანალიზი"
-            ],
-            answer_index: 1,
-            explanation: `ეს არის სოციალური და საზოგადოებრივი ჯანდაცვის სტანდარტული პრინციპი თემაზე: ${t.theme}.`,
-            source_url: t.src_url,
-            source_title: t.src_title
-          });
-        }
-        allQuestions[packId] = packQuestions;
-      }
-    });
-
-    let currentQuiz = null;
-    let currentQuestions = [];
-    let currentIndex = 0;
-    let score = 0;
-
-    function $(id) { return document.getElementById(id); }
-
-    function navigate(route) {
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.getAttribute('data-route') === route));
-
-      if (route === 'play') {
-        $('view-play').classList.add('active');
-        renderCatalog();
-      } else if (route === 'leaderboard') {
-        $('view-leaderboard').classList.add('active');
-      } else if (route === 'auth') {
-        $('view-auth').classList.add('active');
-      } else if (route === 'result') {
-        $('view-result').classList.add('active');
-      }
-    }
-
-    function renderCatalog() {
-      const list = $('quiz-list');
-      list.innerHTML = allQuizzes.map(q => `
-        <div class="quiz-card">
-          <span class="quiz-badge">${q.theme}</span>
-          <h3>${q.title}</h3>
-          <div class="quiz-meta">
-            <span>${q.question_count} კითხვა</span>
-            <span>10 წუთი</span>
-          </div>
-          <button class="btn" onclick="startQuiz('${q.id}')">დაწყება →</button>
-        </div>
-      `).join('');
-    }
-
-    function startQuiz(quizId) {
-      currentQuiz = allQuizzes.find(q => q.id === quizId);
-      currentQuestions = allQuestions[quizId] || [];
-      currentIndex = 0;
-      score = 0;
-
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      $('view-quiz').classList.add('active');
-      renderQuestion();
-    }
-
-    function renderQuestion() {
-      const container = $('quiz-player-container');
-      const q = currentQuestions[currentIndex];
-      const total = currentQuestions.length;
-      const progress = Math.round((currentIndex / total) * 100);
-
-      container.innerHTML = `
-        <div class="player-box">
-          <div class="player-top">
-            <span>${currentQuiz.theme}</span>
-            <span>კითხვა ${currentIndex + 1} /${total}</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: ${progress}%"></div>
-          </div>
-          <h2 class="player-prompt">${q.prompt}</h2>
-          <div class="
