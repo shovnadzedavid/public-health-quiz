@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ჯანდაცვის გამოწვევა</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #0b0f19;
@@ -68,7 +69,6 @@
     .view { display: none; opacity: 0; transform: translateY(8px); transition: opacity 0.3s ease, transform 0.3s ease; }
     .view.active { display: block; opacity: 1; transform: translateY(0); }
 
-    /* Catalog Grid & Cards */
     .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
     .quiz-card { 
       background: var(--card-bg); 
@@ -91,7 +91,6 @@
     .quiz-card h3 { font-size: 1.1rem; line-height: 1.4; }
     .quiz-meta { font-size: 0.85rem; color: var(--text-muted); display: flex; justify-content: space-between; }
 
-    /* Player Box */
     .player-box { 
       background: var(--card-bg); 
       backdrop-filter: blur(12px);
@@ -129,7 +128,6 @@
     
     .explanation-box { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; margin-top: 1rem; font-size: 0.95rem; line-height: 1.5; }
     
-    /* Result & Auth Boxes */
     .result-box, .auth-box { 
       background: var(--card-bg); 
       backdrop-filter: blur(12px);
@@ -156,14 +154,9 @@
       border-radius: 0.75rem; 
       outline: none; 
       font-size: 1rem;
-      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .auth-box input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
-    }
+    .auth-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
     
-    /* Leaderboard & Admin Tables */
     .table-container { 
       background: var(--card-bg); 
       backdrop-filter: blur(12px);
@@ -184,12 +177,13 @@
     <nav>
       <a data-route="play" onclick="navigate('play')">თამაში</a>
       <a data-route="leaderboard" onclick="navigate('leaderboard')">რეიტინგი</a>
-      <a data-route="admin" onclick="navigate('admin')">მართვა</a>
+      <a id="nav-admin" data-route="admin" onclick="navigate('admin')" style="display:none;">მართვა</a>
     </nav>
     <div class="actions">
       <button class="btn btn-secondary" id="theme-toggle" title="თემის გადართვა">🌓</button>
-      <button class="btn btn-secondary" onclick="navigate('auth')">შესვლა</button>
-      <button class="btn" onclick="navigate('auth')">რეგისტრაცია</button>
+      <div id="auth-action-area">
+        <button class="btn" onclick="navigate('auth')">შესვლა / რეგისტრაცია</button>
+      </div>
     </div>
   </header>
 
@@ -234,12 +228,12 @@
       </div>
     </div>
 
-    <!-- Admin View -->
+    <!-- Admin View (Protected) -->
     <div id="view-admin" class="view">
       <h2 style="margin-bottom: 1.5rem; font-weight: 700;">⚙️ მართვის პანელი</h2>
       <div class="table-container" style="padding: 2rem;">
-        <p style="color: var(--text-muted); margin-bottom: 1rem;">აქედან შესაძლებელია კითხვებისა და პაკეტების მართვა.</p>
-        <button class="btn" onclick="alert('სისტემა მუშაობს ლოკალურ რეჟიმში (375 კითხვა აქტიურია)')">ბაზის სტატუსის შემოწმება</button>
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">აქედან ხორციელდება სისტემისა და კითხვების მართვა (მხოლოდ ადმინისტრატორისთვის).</p>
+        <button class="btn" onclick="alert('სისტემა მუშაობს დაცულ რეჟიმში.')">სტატუსის შემოწმება</button>
       </div>
     </div>
 
@@ -253,7 +247,10 @@
         <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
           <input type="email" id="auth-email" placeholder="ელ-ფოსტა">
           <input type="password" id="auth-password" placeholder="პაროლი">
-          <button class="btn" style="width:100%; padding: 0.8rem;" onclick="handleAuth()">შესვლა</button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn" style="flex:1;" onclick="handleLogin()">შესვლა</button>
+            <button class="btn btn-secondary" style="flex:1;" onclick="handleSignUp()">რეგისტრაცია</button>
+          </div>
         </div>
         <div id="auth-msg" style="font-size: 0.85rem; text-align: center; color: var(--primary);"></div>
       </div>
@@ -261,6 +258,17 @@
   </div>
 
   <script>
+    // Supabase კონფიგურაცია (ჩასვი შენი რეალური გასაღებები თუ იყენებ ბაზას, ან დატოვე ლოკალური)
+    const SUPABASE_URL = "https://შენი-პროექტი.supabase.co";
+    const SUPABASE_KEY = "შენი_anon_key";
+    
+    // ვამოწმებთ არის თუ არა კონფიგურირებული
+    const useSupabase = SUPABASE_URL.includes("http");
+    let supabase = useSupabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+    let currentUser = null;
+
+    // ლოკალური ბაზა უსაფრთხო მუშაობისთვის
     const themesConfig = [
       { theme: "ეპიდემიოლოგია", icon: "🦠", prefix: "v04-epidemiology", count: 5, src_url: "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section1.html", src_title: "CDC — ეპიდემიოლოგიის პრინციპები" },
       { theme: "ჯანდაცვის მენეჯმენტი", icon: "📊", prefix: "v04-management", count: 5, src_url: "https://www.who.int/en/news-room/fact-sheets/detail/quality-health-services", src_title: "WHO — Quality health services" },
@@ -275,13 +283,7 @@
     themesConfig.forEach(t => {
       for (let p = 1; p <= t.count; p++) {
         const packId = `${t.prefix}-pack-${p < 10 ? '0' + p : p}`;
-        allQuizzes.push({
-          id: packId,
-          title: `${t.theme} — პაკეტი #${p}`,
-          theme: t.theme,
-          icon: t.icon,
-          question_count: 15
-        });
+        allQuizzes.push({ id: packId, title: `${t.theme} — პაკეტი #${p}`, theme: t.theme, icon: t.icon, question_count: 15 });
 
         const packQuestions = [];
         for (let q = 1; q <= 15; q++) {
@@ -311,22 +313,99 @@
 
     function $(id) { return document.getElementById(id); }
 
+    window.addEventListener('DOMContentLoaded', async () => {
+      setupTheme();
+      if (supabase) {
+        // სესიის შენარჩუნება (არ აგდებს 5 წამში)
+        const { data } = await supabase.auth.getSession();
+        currentUser = data.session?.user || null;
+        supabase.auth.onAuthStateChange((_event, session) => {
+          currentUser = session?.user || null;
+          updateAuthUI();
+        });
+      }
+      updateAuthUI();
+      navigate(window.location.hash.replace('#', '') || 'play');
+    });
+
     function navigate(route) {
+      // დაცვა: თუ ადმინზე ცდილობს შესვლას და არ არის ადმინი
+      if (route === 'admin' && (!currentUser || currentUser.email !== 'admin@admin.ge')) {
+        alert('წვდომა შეზღუდულია! მხოლოდ ადმინისტრატორისთვის.');
+        route = 'play';
+      }
+
+      window.location.hash = route;
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.getAttribute('data-route') === route));
 
-      if (route === 'play') {
-        $('view-play').classList.add('active');
-        renderCatalog();
-      } else if (route === 'leaderboard') {
-        $('view-leaderboard').classList.add('active');
-      } else if (route === 'admin') {
-        $('view-admin').classList.add('active');
-      } else if (route === 'auth') {
-        $('view-auth').classList.add('active');
-      } else if (route === 'result') {
-        $('view-result').classList.add('active');
+      const target = $(`view-${route}`);
+      if (target) target.classList.add('active');
+
+      if (route === 'play') renderCatalog();
+    }
+
+    function updateAuthUI() {
+      const area = $('auth-action-area');
+      const adminNav = $('nav-admin');
+
+      // ვამოწმებთ არის თუ არა ადმინი (მაგალითად მეილით ან როლით)
+      const isAdmin = currentUser && (currentUser.email === 'admin@admin.ge' || localStorage.getItem('isAdmin') === 'true');
+
+      if (isAdmin) {
+        adminNav.style.display = 'block';
+      } else {
+        adminNav.style.display = 'none';
       }
+
+      if (currentUser) {
+        area.innerHTML = `<span style="font-size:0.85rem; color:var(--text-muted);">${currentUser.email}</span> <button class="btn btn-secondary" onclick="handleLogout()">გასვლა</button>`;
+      } else {
+        area.innerHTML = `<button class="btn" onclick="navigate('auth')">შესვლა / რეგისტრაცია</button>`;
+      }
+    }
+
+    async function handleLogin() {
+      const email = $('auth-email').value.trim();
+      const password = $('auth-password').value.trim();
+      if (!email || !password) { $('auth-msg').textContent = 'შეავსეთ ყველა ველი'; return; }
+
+      if (supabase) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) { $('auth-msg').textContent = error.message; return; }
+      } else {
+        // სიმულაცია თუ Supabase არ არის ჩართული
+        currentUser = { email };
+        if (email === 'admin@admin.ge') localStorage.setItem('isAdmin', 'true');
+      }
+
+      updateAuthUI();
+      $('auth-msg').textContent = 'წარმატებით შეხვედით სისტემაში!';
+      setTimeout(() => navigate('play'), 800);
+    }
+
+    async function handleSignUp() {
+      const email = $('auth-email').value.trim();
+      const password = $('auth-password').value.trim();
+      if (!email || !password) { $('auth-msg').textContent = 'შეავსეთ ყველა ველი'; return; }
+
+      if (supabase) {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) { $('auth-msg').textContent = error.message; return; }$('auth-msg').textContent = 'რეგისტრაცია წარმატებულია! შეამოწმეთ მეილი.';
+      } else {
+        currentUser = { email };
+        updateAuthUI();
+        $('auth-msg').textContent = 'რეგისტრაცია წარმატებულია!';
+        setTimeout(() => navigate('play'), 800);
+      }
+    }
+
+    async function handleLogout() {
+      if (supabase) await supabase.auth.signOut();
+      currentUser = null;
+      localStorage.removeItem('isAdmin');
+      updateAuthUI();
+      navigate('play');
     }
 
     function renderCatalog() {
@@ -423,24 +502,16 @@
       }
     };
 
-    function handleAuth() {
-      const email = $('auth-email').value;
-      if (!email) { $('auth-msg').textContent = 'შეიყვანეთ ელ-ფოსტა'; return; }
-      $('auth-msg').textContent = 'წარმატებით შეხვედით სისტემაში!';
-      setTimeout(() => navigate('play'), 1000);
+    function setupTheme() {
+      const saved = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', saved);
+      $('theme-toggle').addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme');
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+      });
     }
-
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-      const cur = document.documentElement.getAttribute('data-theme');
-      const next = cur === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('theme', next);
-    });
-
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-
-    renderCatalog();
   </script>
 </body>
 </html>
