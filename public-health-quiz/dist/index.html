@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ჯანდაცვის გამოწვევა</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #0b0f19;
@@ -115,7 +114,7 @@
             </tr>
           </thead>
           <tbody id="leaderboard-tbody">
-            <tr><td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">იტვირთება რეიტინგი...</td></tr>
+            <tr><td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">ჩანაწერები ჯერ არ არის.</td></tr>
           </tbody>
         </table>
       </div>
@@ -133,7 +132,6 @@
   </div>
 
   <script>
-    // სრულად ავტომატური ლოკალური ბაზა 25 პაკეტით და 375 კითხვით (გარანტირებულად რომ არასდროს გაჭედოს)
     const themesConfig = [
       { theme: "ეპიდემიოლოგია", prefix: "v04-epidemiology", count: 5, src_url: "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section1.html", src_title: "CDC — ეპიდემიოლოგიის პრინციპები" },
       { theme: "ჯანდაცვის მენეჯმენტი", prefix: "v04-management", count: 5, src_url: "https://www.who.int/en/news-room/fact-sheets/detail/quality-health-services", src_title: "WHO — Quality health services" },
@@ -192,7 +190,6 @@
         renderCatalog();
       } else if (route === 'leaderboard') {
         $('view-leaderboard').classList.add('active');
-        renderLeaderboard();
       } else if (route === 'auth') {
         $('view-auth').classList.add('active');
       } else if (route === 'result') {
@@ -294,19 +291,10 @@
       }
     };
 
-    function renderLeaderboard() {
-      const tbody = $('leaderboard-tbody');
-      tbody.innerHTML = `
-        <tr><td>1</td><td>გიორგი მ.</td><td>ეპიდემიოლოგია — პაკეტი #1</td><td><strong style="color:var(--primary);">1500</strong></td></tr>
-        <tr><td>2</td><td>ნინო კ.</td><td>ჯანდაცვის მენეჯმენტი — პაკეტი #1</td><td><strong style="color:var(--primary);">1400</strong></td></tr>
-        <tr><td>3</td><td>დავით შ.</td><td>პრევენცია — პაკეტი #2</td><td><strong style="color:var(--primary);">1300</strong></td></tr>
-      `;
-    }
-
     function handleAuth() {
       const email = $('auth-email').value;
       if (!email) { $('auth-msg').textContent = 'შეიყვანეთ ელ-ფოსტა'; return; }
-      $('auth-msg').textContent = 'წარმოადგინეთ წარმატებული ავტორიზაცია!';
+      $('auth-msg').textContent = 'წარმატებით შეხვედით სისტემაში!';
       setTimeout(() => navigate('play'), 1000);
     }
 
