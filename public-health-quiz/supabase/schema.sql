@@ -7,7 +7,7 @@ create table if not exists public.sessions(id uuid primary key default gen_rando
 create table if not exists public.daily_sets(day date primary key, items jsonb not null);
 alter table public.daily_sets enable row level security;
 revoke all on public.daily_sets from anon,authenticated;
-create unique index if not exists quiz_first on public.sessions(user_id,quiz_id) where mode='quiz';
+drop index if exists public.quiz_first;
 create table if not exists public.quizzes(id text primary key,title text not null,theme text not null,question_count int not null check(question_count in (15,20,25,30)),question_ids uuid[] not null,status text not null default 'draft' check(status in ('draft','published')));
 create table if not exists public.health_days(month_day text primary key,title text not null,theme text not null,source_url text not null);
 alter table public.quizzes enable row level security;
@@ -31,7 +31,7 @@ create or replace function public.start_game(p_mode text,p_quiz text default nul
 if auth.uid() is null then raise exception 'ჯერ შედით ანგარიშში'; end if;
 if p_mode is null or p_mode not in ('quiz','daily') then raise exception 'უცნობი რეჟიმი'; end if;
 perform pg_advisory_xact_lock(hashtext(auth.uid()::text));
-if p_mode='daily' then select * into s from sessions where user_id=auth.uid() and mode='daily' and day=d; else select * into s from sessions where user_id=auth.uid() and mode='quiz' and quiz_id=p_quiz; end if;
+if p_mode='daily' then select * into s from sessions where user_id=auth.uid() and mode='daily' and day=d; else select * into s from sessions where user_id=auth.uid() and mode='quiz' and quiz_id=p_quiz and finished_at is null and now()<=started_at+jsonb_array_length(items)*interval '40 seconds' order by started_at desc limit 1; end if;
 if s.id is not null then
 if s.finished_at is null and now()>s.started_at+jsonb_array_length(s.items)*interval '40 seconds' then update sessions set finished_at=now() where id=s.id returning * into s; end if;
 return quiz_state(s); end if;
@@ -65,7 +65,7 @@ update sessions set score=score+case when ok then 100 else 0 end,cursor=cursor+1
 return jsonb_build_object('correct',ok,'answer_index',q->'answer_index','explanation',q->>'explanation','source_url',q->>'source_url','source_title',q->>'source_title','source_locator',q->>'source_locator','state',quiz_state(s)); end; $$;
 create or replace function public.leaderboard(p_mode text default 'quiz',p_quiz text default null,p_period text default 'week') returns jsonb language plpgsql security definer set search_path=public as $$ declare d date:=(now() at time zone 'Asia/Tbilisi')::date; cutoff date; begin
 cutoff:=case when p_period='month' then date_trunc('month',d)::date when p_period='day' then d else date_trunc('week',d)::date end;
-return coalesce((select jsonb_agg(to_jsonb(t)) from (select p.nickname,round(avg(s.score::numeric/jsonb_array_length(s.items)),1) points,count(*) rounds from sessions s join profiles p on p.id=s.user_id where mode=p_mode and finished_at is not null and (p_mode<>'daily' or day>=cutoff) and (p_quiz is null or quiz_id=p_quiz) group by p.id,p.nickname order by points desc,rounds desc,p.nickname,p.id limit 50) t),'[]'); end; $$;
+return coalesce((select jsonb_agg(to_jsonb(t)) from (select p.nickname,round(avg(s.score::numeric/jsonb_array_length(s.items)),1) points,count(*) rounds from sessions s join profiles p on p.id=s.user_id where mode=p_mode and finished_at is not null and (p_mode<>'daily' or day>=cutoff) and (p_quiz is null or quiz_id=p_quiz) and (p_mode<>'quiz' or s.id=(select first_try.id from sessions first_try where first_try.user_id=s.user_id and first_try.mode='quiz' and first_try.quiz_id=s.quiz_id and first_try.finished_at is not null order by first_try.started_at,first_try.id limit 1)) group by p.id,p.nickname order by points desc,rounds desc,p.nickname,p.id limit 50) t),'[]'); end; $$;
 create or replace function public.game_info() returns jsonb language sql security definer set search_path=public as $$ select jsonb_build_object('published',(select count(*) from questions where status='published'),'drafts',(select count(*) from questions where status='draft'),'editor',exists(select 1 from editors where id=auth.uid())); $$;
 create or replace function public.import_questions(p_items jsonb) returns int language plpgsql security definer set search_path=public as $$ declare q jsonb; n int:=0; begin
 if not exists(select 1 from editors where id=auth.uid()) then raise exception 'ადმინისტრატორის უფლება საჭიროა'; end if;
