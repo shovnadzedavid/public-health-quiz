@@ -7,9 +7,9 @@ vm.runInContext(fs.readFileSync('dist/app.js','utf8'),context);await new Promise
 await vm.runInContext('quizzes()',context);assert.match(node('#main').innerHTML,/ქუიზების კატალოგი/);assert.match(node('#main').innerHTML,/რეგისტრაცია/);assert.doesNotMatch(node('#main').innerHTML,/სატესტო ქუიზის ნახვა/);
 await vm.runInContext("start('demo')",context);assert.equal(vm.runInContext('state',context),null);assert.equal(node('#settings').opened,true);
 await vm.runInContext("config={url:'https://example.supabase.co',key:'public'};auth={access_token:'test',expires_at:Date.now()/1000+3600}",context);
-await vm.runInContext("start('demo')",context);assert.equal(vm.runInContext('state.total',context),15);
+await vm.runInContext("start('demo')",context);assert.equal(vm.runInContext('state.total',context),15);assert.match(node('#main').innerHTML,/კითხვა 1/);assert.match(node('#main').innerHTML,/role="progressbar"/);
 for(let i=0;i<15;i++)await vm.runInContext('answer(state.question.answer_index)',context);
-assert.equal(vm.runInContext('state.score',context),1500);assert.equal(vm.runInContext('state.finished',context),true);
+assert.equal(vm.runInContext('state.score',context),1500);assert.equal(vm.runInContext('state.finished',context),true);assert.match(node('#main').innerHTML,/100<span>%/);assert.match(node('#main').innerHTML,/15 სწორი პასუხი/);assert.match(node('#main').innerHTML,/მთავარ გვერდზე/);
 assert.equal(vm.runInContext("sourceLink('javascript:alert(1)')",context),'#');assert.equal(vm.runInContext("esc('<img>')",context),'&lt;img&gt;');
 await vm.runInContext('results()',context);assert.match(node('#main').innerHTML,/პასუხები და წყაროები/);
 assert.equal(bank.length,15);const q=JSON.parse(fs.readFileSync('data/questions.json'));assert.equal(q.length,30);assert.equal(new Set(q.map(x=>x.family_id)).size,30);assert.equal(bank.some(x=>q.some(y=>y.id===x.id||y.family_id===x.family_id)),false);
