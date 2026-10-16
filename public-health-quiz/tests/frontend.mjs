@@ -6,6 +6,7 @@ const context=vm.createContext({document:{querySelector:node,querySelectorAll:()
 vm.runInContext(fs.readFileSync('dist/app.js','utf8'),context);await new Promise(r=>setImmediate(r));
 
 const css=fs.readFileSync('dist/style.css','utf8');assert.match(css,/\.question-card \.option\{[^}]*background:var\(--card\);color:var\(--ink\)/);assert.match(css,/body\.dark \.question-card \.option\{[^}]*color:#f1f4fd/);
+await vm.runInContext('home()',context);assert.match(node('#main').innerHTML,/feature-panel/);assert.doesNotMatch(node('#main').innerHTML,/play-art|art-orbit|ცნობისმოყვარეობა გიხდება/);assert.match(css,/prefers-reduced-motion:reduce/);
 await vm.runInContext('quizzes()',context);assert.match(node('#main').innerHTML,/ქუიზების კატალოგი/);assert.match(node('#main').innerHTML,/რეგისტრაცია/);assert.doesNotMatch(node('#main').innerHTML,/სატესტო ქუიზის ნახვა/);
 await vm.runInContext("start('demo')",context);assert.equal(vm.runInContext('state',context),null);assert.equal(node('#settings').opened,true);
 await vm.runInContext("config={url:'https://example.supabase.co',key:'public'};auth={access_token:'test',expires_at:Date.now()/1000+3600}",context);
