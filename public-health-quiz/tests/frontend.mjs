@@ -2,7 +2,7 @@ import vm from 'node:vm';import fs from 'node:fs';import assert from 'node:asser
 const nodes=new Map(), classes=()=>({add(){},contains(){return false},toggle(){}});
 const node=s=>{if(!nodes.has(s))nodes.set(s,{innerHTML:'',textContent:'',value:'',dataset:{},classList:classes(),showModal(){this.opened=true},close(){this.opened=false},reportValidity(){return true}});return nodes.get(s)};
 const bank=JSON.parse(fs.readFileSync('dist/demo-questions.json'));const stored=new Map();
-const context=vm.createContext({document:{querySelector:node,querySelectorAll:()=>[],body:{classList:classes()}},window:{QUIZ_CONFIG:{url:'',key:''}},localStorage:{getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)},fetch:async()=>({json:async()=>bank}),setInterval:()=>1,clearInterval(){},URL,Date,Math,JSON,Number,String,atob,alert:msg=>{throw Error(msg)}});
+const context=vm.createContext({document:{querySelector:node,querySelectorAll:()=>[],body:{classList:classes()}},window:{QUIZ_CONFIG:{url:'',key:''}},localStorage:{getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)},fetch:async()=>({json:async()=>bank}),setInterval:()=>1,clearInterval(){},setTimeout:()=>1,clearTimeout(){},URL,Date,Math,JSON,Number,String,atob,alert:msg=>{throw Error(msg)}});
 vm.runInContext(fs.readFileSync('dist/app.js','utf8'),context);await new Promise(r=>setImmediate(r));
 assert.match(node('#main').innerHTML,/ქუიზების კატალოგი/);assert.match(node('#main').innerHTML,/რეგისტრაცია/);assert.doesNotMatch(node('#main').innerHTML,/სატესტო ქუიზის ნახვა/);
 await vm.runInContext("start('demo')",context);assert.equal(vm.runInContext('state',context),null);assert.equal(node('#settings').opened,true);
