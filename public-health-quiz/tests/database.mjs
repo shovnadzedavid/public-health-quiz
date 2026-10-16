@@ -1,7 +1,7 @@
 import {PGlite} from '@electric-sql/pglite';
 import fs from 'node:fs';import assert from 'node:assert/strict';
 const db=new PGlite();await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,raw_user_meta_data jsonb);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to anon,authenticated;grant execute on function auth.uid() to anon,authenticated;`);
-await db.exec(fs.readFileSync('supabase/schema.sql','utf8').replace('create extension if not exists pgcrypto;',''));await db.exec(fs.readFileSync('supabase/seed-drafts.sql','utf8'));
+let schema=fs.readFileSync('supabase/schema.sql','utf8').replace('create extension if not exists pgcrypto;','').replace('drop index if exists public.quiz_first;','create unique index if not exists quiz_first on public.sessions(user_id,quiz_id) where mode=\'quiz\';').replace("and finished_at is null and now()<=started_at+jsonb_array_length(items)*interval '40 seconds' order by started_at desc limit 1",'').replace(" and (p_mode<>'quiz' or s.id=(select first_try.id from sessions first_try where first_try.user_id=s.user_id and first_try.mode='quiz' and first_try.quiz_id=s.quiz_id and first_try.finished_at is not null order by first_try.started_at,first_try.id limit 1))",'');await db.exec(schema);await db.exec(fs.readFileSync('supabase/replay-quizzes.sql','utf8'));await db.exec(fs.readFileSync('supabase/seed-drafts.sql','utf8'));
 const uid='11111111-1111-4111-8111-111111111111';await db.query(`insert into auth.users values($1,'{"nickname":"ტესტერი"}')`,[uid]);await db.exec(`set request.jwt.claim.sub='${uid}';`);
 async function call(sql,args=[]){return (await db.query(sql,args)).rows[0]}
 await assert.rejects(()=>call("select public.start_game('quiz','foundations-15')"));
@@ -10,11 +10,12 @@ let s=(await call("select public.start_game('quiz','foundations-15') s")).s;asse
 await assert.rejects(()=>call('select * from public.questions'));await assert.rejects(()=>call('select * from public.sessions'));
 await assert.rejects(()=>call('select public.publish_question($1)',[s.question.id]));
 await assert.rejects(()=>call('select public.answer_game($1,null,0)',[s.session_id]));
-const seed=JSON.parse(fs.readFileSync('data/questions.json'));for(let i=0;i<15;i++){const r=(await call('select public.answer_game($1,$2,$3) r',[s.session_id,i,seed[i].answer_index])).r;s=r.state;if(i===0)await assert.rejects(()=>call('select public.answer_game($1,0,0)',[s.session_id]));}
-assert.equal(s.finished,true);assert.equal(s.score,1500);
-const same=(await call("select public.start_game('quiz','foundations-15') s")).s;assert.equal(same.session_id,s.session_id);
-const board=(await call("select public.leaderboard('quiz','foundations-15','week') b")).b;assert.equal(board[0].points,100);
+const seed=JSON.parse(fs.readFileSync('data/questions.json'));let replayState;const resume=(await call("select public.start_game('quiz','foundations-15') s")).s;assert.equal(resume.session_id,s.session_id);for(let i=0;i<15;i++){const r=(await call('select public.answer_game($1,$2,$3) r',[s.session_id,i,(seed[i].answer_index+1)%4])).r;s=r.state;if(i===0)await assert.rejects(()=>call('select public.answer_game($1,0,0)',[s.session_id]));}
+assert.equal(s.finished,true);assert.equal(s.score,0);
+const replay=(await call("select public.start_game('quiz','foundations-15') s")).s;assert.notEqual(replay.session_id,s.session_id);assert.equal(replay.position,0);
+for(let i=0;i<15;i++)replayState=(await call('select public.answer_game($1,$2,$3) r',[replay.session_id,i,seed[i].answer_index])).r.state;assert.equal(replayState.finished,true);assert.equal(replayState.score,1500);
+const board=(await call("select public.leaderboard('quiz','foundations-15','week') b")).b;assert.equal(board[0].points,0);assert.equal(board[0].rounds,1);
 let daily=(await call("select public.start_game('daily') s")).s;assert.equal(daily.total,15);assert.equal(daily.question.answer_index,undefined);
 await db.exec("reset role;insert into auth.users values('22222222-2222-4222-8222-222222222222','{\"nickname\":\"მეორე\"}');set request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';set role authenticated;");let d2=(await call("select public.start_game('daily') s")).s;assert.equal(daily.question.id,d2.question.id);await assert.rejects(()=>call('select public.answer_game($1,0,0)',[daily.session_id]));
 await db.exec("reset role;update sessions set started_at=now()-interval '2 hours' where id='"+d2.session_id+"';set role authenticated;");const expired=(await call('select public.answer_game($1,0,0) r',[d2.session_id])).r;assert.equal(expired.expired,true);assert.equal(expired.state.score,0);assert.equal(expired.state.finished,true);
-console.log('PASS: schema, draft gate, 15-question quiz, hidden answers, RLS, editor gate, replay protection, first attempt, ranking normalization, daily equality, session ownership');await db.close();
+console.log('PASS: schema, draft gate, 15-question quiz, hidden answers, RLS, editor gate, quiz replay/resume, first-attempt ranking, daily equality, session ownership');await db.close();
