@@ -169,3 +169,31 @@ body.dark .question-card .option>b{background:#c7f57c;color:#17220e}
 body.dark .question-card .option:hover:not(:disabled){background:#2b3955;color:#fff;border-color:#7de1c7}
 @media(max-width:760px){.hero{margin:.5rem 0 1.5rem;padding:1.35rem;border-radius:22px}.category-tile{min-height:145px}}
 @media(prefers-reduced-motion:reduce){.hero,.daily-banner,.category-tile{scroll-behavior:auto}}
+
+/* More character, tighter quiz rhythm */
+.quiz-screen{margin:clamp(.5rem,1.8vw,1.5rem) auto 3rem;max-width:860px}
+.quiz-status{position:relative;padding:1rem 1.2rem;background:linear-gradient(115deg,var(--card),var(--soft));border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.quiz-status>.tag{padding:.55rem .8rem;border-radius:11px;background:color-mix(in srgb,var(--mint) 13%,var(--card));color:var(--mint);max-width:100%;overflow-wrap:anywhere}
+.quiz-status .progress{height:9px;background:color-mix(in srgb,var(--mint) 16%,var(--line))}
+.quiz-status .progress>div{background:linear-gradient(90deg,var(--mint),var(--accent));box-shadow:0 0 14px color-mix(in srgb,var(--mint) 40%,transparent)}
+.quiz-progress-copy strong{color:var(--mint);font-size:1.1rem}
+.timer-pill{border:1px solid color-mix(in srgb,var(--mint) 25%,var(--line));background:color-mix(in srgb,var(--mint) 12%,var(--card));color:var(--ink);min-width:4rem;text-align:center}
+.question-card{position:relative;overflow:hidden;background:radial-gradient(circle at 100% 0,color-mix(in srgb,var(--purple) 10%,transparent),transparent 28%),linear-gradient(140deg,var(--card),color-mix(in srgb,var(--mint) 5%,var(--card)));border-color:color-mix(in srgb,var(--mint) 22%,var(--line));box-shadow:0 22px 55px #07111f25}
+.question-card:after{content:'';position:absolute;z-index:0;top:-60px;right:-55px;width:180px;height:180px;border:1px solid color-mix(in srgb,var(--mint) 20%,transparent);border-radius:50%;box-shadow:0 0 0 18px color-mix(in srgb,var(--mint) 4%,transparent),0 0 0 38px color-mix(in srgb,var(--purple) 4%,transparent);pointer-events:none}
+.question-card>*{position:relative;z-index:1}
+.question-card>.eyebrow{padding:.42rem .75rem;border-radius:999px;background:color-mix(in srgb,var(--mint) 12%,var(--card));color:var(--mint)}
+.question-card h1{max-width:720px;margin:1rem 0 1.6rem;font-size:clamp(1.55rem,3vw,2.25rem);line-height:1.5}
+.question-card .options{gap:.8rem}
+.question-card .option{min-height:64px;border-radius:16px;font-size:15px;box-shadow:0 6px 18px #07111f14;transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.question-card .option>b{width:36px;height:36px;border-radius:12px;font-weight:800}
+.question-card .option:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 24px #07111f25}
+.question-card .option:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.hero{background:radial-gradient(ellipse at 18% 95%,color-mix(in srgb,var(--purple) 9%,transparent),transparent 35%),radial-gradient(circle at 86% 18%,color-mix(in srgb,var(--mint) 17%,transparent),transparent 33%),linear-gradient(120deg,var(--card),var(--soft))}
+.hero .eyebrow{padding:.55rem .8rem;border:1px solid color-mix(in srgb,var(--mint) 22%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--mint) 8%,var(--card));color:var(--mint)}
+.hero-actions .primary,.daily-banner>button{box-shadow:0 8px 20px color-mix(in srgb,var(--mint) 18%,transparent)}
+.daily-banner{border-radius:22px;background:radial-gradient(circle at 90% 15%,color-mix(in srgb,var(--purple) 10%,transparent),transparent 28%),linear-gradient(110deg,var(--card),var(--soft))}
+.category-tile{min-height:184px;background:linear-gradient(145deg,var(--card),color-mix(in srgb,var(--tone) 13%,var(--card)));box-shadow:0 8px 24px #0c183018}
+.category-icon{display:grid;place-items:center;width:44px;height:44px;border:1px solid color-mix(in srgb,var(--tone) 27%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--tone) 10%,var(--card))}
+.category-tile strong{font-size:13px}
+@media(max-width:760px){.quiz-screen{margin:.5rem auto 2rem}.quiz-status{padding:.85rem;border-radius:15px}.question-card{border-radius:20px}.question-card:after{width:125px;height:125px;right:-50px;top:-50px}.question-card .option{min-height:58px;font-size:14px}.category-tile{min-height:155px}}
+@media(prefers-reduced-motion:reduce){.quiz-screen,.question-card .option{animation:none;transition:none}}
