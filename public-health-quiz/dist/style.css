@@ -148,7 +148,7 @@ main{animation:rise-in .25s both}
 .result-card h1{font-size:clamp(2rem,5vw,3.2rem);margin:.6rem 0 1.5rem;letter-spacing:-.035em}
 .result-score{display:grid;justify-items:center;gap:.25rem;margin:1rem auto}
 .result-score strong{font-size:clamp(5rem,15vw,8rem);line-height:.95;letter-spacing:-.07em;color:var(--accent,#169b8b)}
-.result-score strong span{font-size:.42em;vertical-align:top;letter-spacing:-.03em}
+.result-score strong{display:inline-flex;align-items:baseline;gap:.03em}.result-score strong span{font-size:.42em;vertical-align:baseline;line-height:1;letter-spacing:-.03em}
 .result-count{font-size:1.1rem;margin:.75rem 0}
 .result-copy{max-width:34rem;margin:1rem auto 1.75rem}
 .result-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:.75rem}
@@ -329,3 +329,4 @@ footer{border-top-color:var(--line)}
 .share-actions{margin-bottom:1rem}
 .share-actions button{font-size:.88rem}
 @media(max-width:760px){.hero{grid-template-columns:1fr}.hero h1{font-size:clamp(2rem,8.4vw,2.7rem);line-height:1.25}.feature-panel{min-height:300px}.share-card-preview{width:min(74%,270px);margin:1rem auto}.share-actions>*{width:100%}}
+
