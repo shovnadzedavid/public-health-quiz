@@ -13,7 +13,7 @@ await vm.runInContext("config={url:'https://example.supabase.co',key:'public'};a
 await vm.runInContext("start('demo')",context);assert.equal(vm.runInContext('state.total',context),15);assert.match(node('#main').innerHTML,/კითხვა 1/);assert.match(node('#main').innerHTML,/role="progressbar"/);
 for(let i=0;i<15;i++)await vm.runInContext('answer(state.question.answer_index)',context);
 assert.equal(vm.runInContext('state.score',context),1500);assert.equal(vm.runInContext('state.finished',context),true);assert.match(node('#main').innerHTML,/100<span>%/);assert.match(node('#main').innerHTML,/15 სწორი პასუხი/);assert.match(node('#main').innerHTML,/მთავარ გვერდზე/);assert.match(node('#main').innerHTML,/resultShareCanvas/);assert.match(node('#main').innerHTML,/შედეგის გაზიარება/);assert.match(node('#main').innerHTML,/ქარდის ჩამოტვირთვა PNG/);assert.ok(drawnCardText.includes('HealthEd.Club'));assert.ok(drawnCardText.includes('healthed.club'));assert.ok(drawnCardText.includes('სატესტო ქუიზი'));const scoreDraw=drawnCardPositions.find(x=>x.text==='100'),percentDraw=drawnCardPositions.find(x=>x.text==='%');assert.ok(percentDraw.x-scoreDraw.x>300,'share card percent should be placed after the full-size score');assert.match(css,/\.result-score strong span\{[^}]*vertical-align:baseline/);
-assert.equal(vm.runInContext("sourceLink('javascript:alert(1)')",context),'#');assert.equal(vm.runInContext("esc('<img>')",context),'&lt;img&gt;');
+assert.equal(vm.runInContext("sourceLink('javascript:alert(1)')",context),'#');assert.equal(vm.runInContext("esc('<img>')",context),'&lt;img&gt;');vm.runInContext("siteCopy.home_title='<script>alert(1)</script>'",context);await vm.runInContext('home()',context);assert.match(node('#main').innerHTML,/&lt;script&gt;alert\(1\)&lt;\/script&gt;/);assert.doesNotMatch(node('#main').innerHTML,/<script>alert\(1\)<\/script>/);
 await vm.runInContext('results()',context);assert.match(node('#main').innerHTML,/პასუხები და წყაროები/);
 assert.equal(bank.length,15);const q=JSON.parse(fs.readFileSync('data/questions.json'));assert.equal(q.length,30);assert.equal(new Set(q.map(x=>x.family_id)).size,30);assert.equal(bank.some(x=>q.some(y=>y.id===x.id||y.family_id===x.family_id)),false);
 console.log('PASS: registration gate, authenticated quiz start, scoring, results, escaping, safe links, distinct seed/demo families');
@@ -23,5 +23,6 @@ await vm.runInContext("(async()=>{auth={access_token:'expired',refresh_token:'st
 assert.equal(vm.runInContext('auth',context),null);assert.equal(node('#account').textContent,'შესვლა');assert.equal(node('#joinButton').hidden,false);assert.equal(vm.runInContext('catalog.length',context),1);
 await vm.runInContext('quizzes()',context);assert.match(node('#main').innerHTML,/ქუიზების კატალოგი/);assert.match(node('#main').innerHTML,/გამოქვეყნებული ქუიზი/);
 console.log('PASS: expired sessions clear the stale login state and public quiz catalog still loads');
+
 
 
