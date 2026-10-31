@@ -1,19 +1,89 @@
-const json=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:{'content-type':'application/json','cache-control':'no-store'}});
-export const allowed=u=>{try{const x=new URL(u);return x.protocol==='https:'&&['who.int','cdc.gov','pubmed.ncbi.nlm.nih.gov','eutils.ncbi.nlm.nih.gov','nejm.org','jamanetwork.com','thelancet.com'].some(h=>x.hostname===h||x.hostname.endsWith('.'+h))}catch{return false}};
-export const plain=html=>html.replace(/<(script|style|nav|header|footer)\b[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/\s+/g,' ').trim();
-export const hash=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))).map(x=>x.toString(16).padStart(2,'0')).join('');
-async function get(url){if(new URL(url).hostname==='eutils.ncbi.nlm.nih.gov')await new Promise(r=>setTimeout(r,350));if(!allowed(url))throw Error('წყაროს დომენი დაუშვებელია');const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(12000),headers:{'User-Agent':'PublicHealthQuiz/0.2 source-checker'}});if(r.status>=300&&r.status<400){const next=new URL(r.headers.get('location'),url).href;if(!allowed(next))throw Error('დაუშვებელი გადამისამართება');return getRedirect(next,1)}if(!r.ok)throw Error('წყარო მიუწვდომელია: HTTP '+r.status);return limitedText(r)}
-async function getRedirect(url,n){if(n>3)throw Error('ძალიან ბევრი გადამისამართება');const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(12000)});if(r.status>=300&&r.status<400){const next=new URL(r.headers.get('location'),url).href;if(!allowed(next))throw Error('დაუშვებელი გადამისამართება');return getRedirect(next,n+1)}if(!r.ok)throw Error('წყარო მიუწვდომელია: HTTP '+r.status);return limitedText(r)}
-async function limitedText(r){const reader=r.body.getReader();let chunks=[],size=0;while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>1500000){await reader.cancel();throw Error('წყაროს ზომის ლიმიტი')}chunks.push(value)}const buf=new Uint8Array(size);let pos=0;for(const c of chunks){buf.set(c,pos);pos+=c.length}return new TextDecoder().decode(buf)}
-const configured=e=>!!(e.SUPABASE_URL&&e.SUPABASE_PUBLIC_KEY&&e.SUPABASE_SERVICE_KEY);
-async function rpc(env,name,body={},token=null){if(!configured(env))throw Error('განახლების სერვერი ჯერ არ არის დაკავშირებული');const key=token?env.SUPABASE_PUBLIC_KEY:env.SUPABASE_SERVICE_KEY;const auth=token||(key.startsWith('eyJ')?key:null);const r=await fetch(env.SUPABASE_URL+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:key,'content-type':'application/json',...(auth?{Authorization:'Bearer '+auth}:{})},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('ბაზის მოთხოვნა ვერ შესრულდა: '+name+' ('+r.status+')');return r.json()}
-async function editor(req,env){const h=req.headers.get('authorization')||'';if(!h.startsWith('Bearer '))throw Object.assign(Error('ჯერ შედით ანგარიშში'),{status:401});const token=h.slice(7);const state=await rpc(env,'game_info',{},token);if(!state.editor)throw Object.assign(Error('ადმინისტრატორის უფლება საჭიროა'),{status:403});return token}
-const topics=[['თამბაქოს კონტროლი','tobacco control public health'],['ჯანდაცვის სისტემა','health systems universal health coverage'],['არაგადამდები დაავადებები','noncommunicable disease prevention public health']];
-async function discover(){const result=[];for(const [topic,term] of topics){const query=new URLSearchParams({db:'pubmed',retmode:'json',retmax:'6',reldate:'100',datetype:'edat',sort:'pub date',term:'('+term+') AND (JAMA[journal] OR N Engl J Med[journal] OR Lancet[journal] OR systematic review[Publication Type] OR randomized controlled trial[Publication Type])'});const a=JSON.parse(await get('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?'+query));const ids=a.esearchresult?.idlist||[];if(!ids.length)continue;const b=JSON.parse(await get('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&id='+ids.join(',')));for(const id of ids){const x=b.result?.[id];if(x?.title)result.push({url:'https://pubmed.ncbi.nlm.nih.gov/'+id+'/',title:plain(x.title),topic,published_at:x.pubdate||null,source_type:'pubmed'})}}
-return result}
-async function runUpdate(env,jid){const summary={checked:0,changed:0,unreachable:0,discovered:0,errors:[]};try{const input=await rpc(env,'source_update_inputs');for(const url of input.urls){try{const txt=plain(await get(url));if(txt.length<100)throw Error('წყაროს ტექსტი არასაკმარისია');const st=await rpc(env,'record_source_audit',{p_url:url,p_hash:await hash(txt),p_error:null});summary.checked++;if(st==='changed')summary.changed++}catch(e){summary.unreachable++;await rpc(env,'record_source_audit',{p_url:url,p_hash:null,p_error:e.message})}}
-try{const list=await discover();summary.discovered=await rpc(env,'accept_discovered_sources',{p_items:list})}catch(e){summary.errors.push('ახალი სტატიების ძებნა ვერ დასრულდა: '+e.message)}
-await rpc(env,'finish_source_update',{p_id:jid,p_status:summary.errors.length||summary.unreachable||input.remaining>10?'partial':'succeeded',p_summary:summary})}catch(e){summary.errors.push(e.message);await rpc(env,'finish_source_update',{p_id:jid,p_status:'failed',p_summary:summary}).catch(()=>{})}}
-const properties={prompt:{type:'string'},options:{type:'array',items:{type:'string'},minItems:4,maxItems:4},answer_index:{type:'integer',minimum:0,maximum:3},explanation:{type:'string'},kind:{type:'string',enum:['logic','scenario','knowledge']},difficulty:{type:'integer',minimum:1,maximum:3},evidence_quote:{type:'string'}};
-export function validateDrafts(data,text,source){if(!Array.isArray(data.questions)||data.questions.length>3)throw Error('მონახაზების ფორმატი არასწორია');return data.questions.map((q,i)=>{if(typeof q.prompt!=='string'||q.prompt.length<20||!Array.isArray(q.options)||q.options.length!==4||new Set(q.options).size!==4||q.options.some(x=>typeof x!=='string'||!x.trim())||!Number.isInteger(q.answer_index)||q.answer_index<0||q.answer_index>3||!['logic','scenario','knowledge'].includes(q.kind)||![1,2,3].includes(q.difficulty)||typeof q.explanation!=='string'||q.explanation.length<20||typeof q.evidence_quote!=='string'||q.evidence_quote.length<20||q.evidence_quote.length>120||q.evidence_quote.trim().split(/\s+/).length>8||!text.toLowerCase().includes(q.evidence_quote.toLowerCase()))throw Error('პასუხის დამადასტურებელი ნაწყვეტი ან ფორმატი ვერ დადასტურდა');return {...q,id:crypto.randomUUID(),family_id:source.id+'-finding-'+i,source_url:source.url,source_title:source.title,source_locator:'Retrieved source excerpt: '+q.evidence_quote,topic:source.topic,status:'draft'}})}
-export default{async fetch(req,env,ctx){const path=new URL(req.url).pathname;if(!path.startsWith('/api/'))return env.ASSETS.fetch(req);try{if(!configured(env))return json({error:'განახლების სერვერს სჭირდება Cloudflare-ის სამი Supabase პარამეტრი.',configured:false},503);const token=await editor(req,env);if(req.method==='GET'&&path==='/api/updates'){const data=await rpc(env,'update_admin_status',{},token);return json({...data,configured:true,ai_enabled:false})}if(req.method==='POST'&&path==='/api/updates'){const jid=await rpc(env,'begin_source_update',{p_scheduled:false});if(!jid)return json({error:'განახლება უკვე მიმდინარეობს ან ბოლო ცდიდან 10 წუთი არ გასულა.'},409);await runUpdate(env,jid);return json({job_id:jid},202)}if(req.method==='POST'&&path==='/api/drafts')return json({error:'ფასიანი გენერაცია ამ ვერსიაში გამორთულია. გამოიყენეთ გამზადებული კითხვების ფაილები.'},503);return json({error:'მოთხოვნა ვერ მოიძებნა'},404)}catch(e){return json({error:e.message},e.status||500)}},async scheduled(event,env,ctx){if(!configured(env))return;const jid=await rpc(env,'begin_source_update',{p_scheduled:true});if(jid)ctx.waitUntil(runUpdate(env,jid))}};
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // CORS უსაფრთხოების წესები ბრაუზერიდან წვდომისთვის
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+
+    // OPTIONS (Preflight) მოთხოვნის დამუშავება ბრაუზერისთვის
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    // ახალი მარშრუტი: URL-ის დამატება RAG ბაზაში
+    if (request.method === 'POST' && url.pathname === '/api/add-url') {
+      try {
+        const { targetUrl } = await request.json();
+
+        // 1. ვკითხულობთ მითითებულ ვებგვერდს
+        const siteResponse = await fetch(targetUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!siteResponse.ok) throw new Error("ვერ მოხერხდა მითითებული ვებგვერდის გახსნა.");
+        const html = await siteResponse.text();
+        
+        // 2. ვასუფთავებთ ტექსტს HTML ტეგებისგან და ვიღებთ სატესტო ბლოკს (1000 სიმბოლო)
+        const cleanText = html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+        const chunk = cleanText.substring(0, 1000); 
+
+        // 3. ტექსტს ვაქცევთ ვექტორად Gemini API-ს მეშვეობით
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${env.GEMINI_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: "models/text-embedding-004",
+              content: { parts: [{ text: chunk }] }
+            })
+          }
+        );
+        const geminiData = await geminiRes.json();
+        
+        if (!geminiData.embedding) {
+            throw new Error("Gemini-მ ვერ დააგენერირა ვექტორი. შეამოწმე API გასაღები.");
+        }
+        const vector = geminiData.embedding.values;
+
+        // 4. ვინახავთ ინფორმაციას Supabase-ის medical_documents ცხრილში
+        const supabaseRes = await fetch(`${env.SUPABASE_URL}/rest/v1/medical_documents`, {
+          method: 'POST',
+          headers: {
+            'apikey': env.SUPABASE_KEY,
+            'Authorization': `Bearer ${env.SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            content: chunk,
+            metadata: { source: targetUrl, type: "webpage" },
+            embedding: vector
+          })
+        });
+
+        if (!supabaseRes.ok) {
+            const errText = await supabaseRes.text();
+            throw new Error(`Supabase Error: ${errText}`);
+        }
+
+        // წარმატებული პასუხის დაბრუნება ფრონტენდზე
+        return new Response(JSON.stringify({ success: true, message: "წყარო წარმატებით დაემატა ბაზას" }), { 
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+        });
+      }
+    }
+
+    // შენი არსებული ქუიზის ბექენდ ლოგიკა (თუ გაქვს სხვა endpoint-ები) უნდა ჩაისვას აქ.
+    // ...
+
+    return new Response("მარშრუტი არ მოიძებნა", { status: 404, headers: corsHeaders });
+  },
+};
