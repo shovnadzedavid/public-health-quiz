@@ -76,48 +76,5 @@ $('#authForm').onsubmit=async e=>{e.preventDefault();await authAction(authMode==
 async function authAction(signup){if(busy)return;if(!$('#authForm').reportValidity())return;if(signup&&$('#nickname').value.trim().length<2){$('#authMessage').textContent='შეიყვანეთ მინიმუმ 2-სიმბოლოიანი მეტსახელი';return}busy=true;try{const body={email:$('#email').value,password:$('#password').value,...(signup?{data:{nickname:$('#nickname').value.trim()}}:{})};const r=await api(signup?'/auth/v1/signup':'/auth/v1/token?grant_type=password',body,'POST',false);if(r.access_token){saveAuth(r);$('#auth').close();$('#password').value='';await refreshInfo();home()}else $('#authMessage').textContent='შეამოწმეთ ელფოსტა ანგარიშის დასადასტურებლად.'}catch(e){$('#authMessage').textContent=e.message}finally{busy=false}}
 $('#account').onclick=async()=>{if(auth){try{await api('/auth/v1/logout',{})}catch{}saveAuth(null);await refreshInfo();home()}else openAuth(false)};$('#closeAuth').onclick=()=>$('#auth').close();$('#closeSettings').onclick=()=>$('#settings').close();$('#setup').onclick=()=>{$('#url').value=config?.url||'';$('#key').value=config?.key||'';$('#settings').showModal()};$('#settingsForm').onsubmit=async e=>{e.preventDefault();const u=new URL($('#url').value);if(u.protocol!=='https:'||!u.hostname.endsWith('.supabase.co')){alert('გამოიყენეთ https://…supabase.co მისამართი');return}const key=$('#key').value.trim();let role='';try{role=JSON.parse(atob(key.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).role}catch{}if(key.startsWith('sb_secret_')||role==='service_role'){alert('საიდუმლო გასაღები აკრძალულია');return}saveAuth(null);config={url:u.origin,key};localStorage.setItem('quizConfig',JSON.stringify(config));$('#settings').close();await refreshInfo();home()};document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>({home,quizzes,leaders,admin}[b.dataset.view])());$('.brand').onclick=e=>{e.preventDefault();home()};if(localStorage.getItem('quizTheme')!=='light')document.body.classList.add('dark');$('#theme').onclick=()=>{document.body.classList.toggle('dark');localStorage.setItem('quizTheme',document.body.classList.contains('dark')?'dark':'light')};setAuthMode(false);saveAuth(auth);refreshInfo().then(home);
 
-// RAG: URL-ის ბაზაში დამატების ლოგიკა
-const addUrlBtn = document.getElementById('add-url-btn');
-if (addUrlBtn) {
-    addUrlBtn.addEventListener('click', async () => {
-        const urlInput = document.getElementById('source-url').value.trim();
-        const statusMessage = document.getElementById('url-status-message');
-        
-        if (!urlInput) {
-            statusMessage.style.color = '#dc2626'; // წითელი
-            statusMessage.textContent = 'გთხოვთ, მიუთითოთ ვებგვერდის ბმული!';
-            return;
-        }
 
-        statusMessage.style.color = '#2563eb'; // ლურჯი
-        statusMessage.textContent = 'მიმდინარეობს მონაცემების ამოღება და ბაზაში შენახვა...';
-        addUrlBtn.disabled = true;
 
-        try {
-            // მოთხოვნის გაგზავნა Cloudflare Worker-თან
-            const response = await fetch('/api/add-url', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ targetUrl: urlInput })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                statusMessage.style.color = '#16a34a'; // მწვანე
-                statusMessage.textContent = 'წარმატება: ' + (data.message || 'წყარო დამატებულია.');
-                document.getElementById('source-url').value = ''; 
-            } else {
-                statusMessage.style.color = '#dc2626';
-                statusMessage.textContent = 'შეცდომა: ' + (data.error || 'მოთხოვნა ვერ შესრულდა.');
-            }
-        } catch (error) {
-            statusMessage.style.color = '#dc2626';
-            statusMessage.textContent = 'სერვერთან კავშირის შეცდომა: ' + error.message;
-        } finally {
-            addUrlBtn.disabled = false;
-        }
-    });
-}
